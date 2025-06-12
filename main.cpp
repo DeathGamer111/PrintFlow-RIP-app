@@ -41,10 +41,9 @@ int main(int argc, char *argv[]) {
     darkPalette.setColor(QPalette::HighlightedText, Qt::black);
 
     app.setPalette(darkPalette);
-    app.setStyleSheet("QToolTip { color: white; background-color: #2a82da; border: 1px solid white; padding: 6px; font-size: 14px; }");
     
     QQmlApplicationEngine engine;
-
+    
     // Instantiate core backend components
     PrintJobModel jobModel;
     ImageLoader imageLoader;

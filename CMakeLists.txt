@@ -55,6 +55,7 @@ qt_add_resources(appRIPPrinterApp
         qml/PrinterSetupView.qml
         qml/DraggableItem.qml
         qml/Toast.qml
+	qml/ToolTip.qml
         assets/logo.png
         assets/blue_noise_mask_256/mask_c.tiff
         assets/blue_noise_mask_256/mask_m.tiff

@@ -8,6 +8,8 @@ ApplicationWindow {
     width: 450
     height: 600
     title: qsTr("RIP Printer App")
+    
+    ToolTip { visible: false }
 
     QtObject {
         id: appState

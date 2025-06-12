@@ -319,8 +319,8 @@ Item {
                             ? outputFileDialog.open()
                             : printSelectedJobDirectly()
                     }
-                    ToolTip.text: "Generate PRN file or print directly to the selected printer."
-                    ToolTip.visible: hovered
+                    // ToolTip.text: "Generate PRN file or print directly to the selected printer."
+                    // ToolTip.visible: hovered
                 }
             }
         }
