@@ -1,6 +1,6 @@
 Fix SVG anf PDF Validation
 Fix image preview to remove the edges of the rectangle if the image is smaller than the bounding area
-Add an Imposition View
+Fix Imposition View
 Fix Croping
 Fix Brightness, Hue, and Saturation settings
 Fix Undo/Redo buttons

@@ -2,6 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.platform
+import QtQuick.Dialogs
+import QtCore
+
 
 Item {
     required property StackView stackView
@@ -150,8 +153,8 @@ Item {
                             text: jobData.name
                             placeholderText: "Enter Job Name"
                             Layout.fillWidth: true
-                            // ToolTip.text: "Enter a name to identify this print job"
-                            // ToolTip.visible: hovered
+                            ToolTip.text: "Enter a name to identify this print job"
+                            ToolTip.visible: hovered
                         }
 
                         Rectangle {
@@ -193,14 +196,14 @@ Item {
                             Button {
                                 text: "Upload Image"
                                 onClicked: imageDialog.open()
-                                // ToolTip.text: "Select an image to associate with this print job"
-                                // ToolTip.visible: hovered
+                                ToolTip.text: "Select an image to associate with this print job"
+                                ToolTip.visible: hovered
                             }
 
                             Button {
                                 text: "Edit Image"
-                                // ToolTip.text: "Open image editor to make adjustments before printing"
-                                // ToolTip.visible: hovered
+                                ToolTip.text: "Open image editor to make adjustments before printing"
+                                ToolTip.visible: hovered
                                 enabled: imagePath !== ""
                                 onClicked: {
                                     stackView.push("qrc:/qml/ImageEditorView.qml", { "imagePath": imagePath })
@@ -209,12 +212,12 @@ Item {
 
                             Button {
                                 text: "Edit Imposition"
-                                // ToolTip.text: "Open Imposition editor to arrange how items will print out on the media"
-                                // ToolTip.visible: hovered
+                                ToolTip.text: "Open Imposition editor to arrange how items will print out on the media"
+                                ToolTip.visible: hovered
                                 enabled: imagePath !== ""
                                 onClicked: {
-					toast.show("Imposition View Coming Soon!")                                    
-					// stackView.push("qrc:/qml/ImpositionView.qml", { "jobData": jobData })
+                                    toast.show("Imposition View Coming Soon!")
+                                    // stackView.push("qrc:/qml/ImpositionView.qml", { "jobData": jobData })
                                 }
                             }
                         }
@@ -269,8 +272,8 @@ Item {
 
                                     enabled: appState.selectedPrinter.length === 0 || isSupported(currentText, printJobOutput.supportedMediaSizes())
 
-                                    // ToolTip.text: "Select a predefined media/paper size or choose Custom to define your own dimensions"
-                                    // ToolTip.visible: hovered
+                                    ToolTip.text: "Select a predefined media/paper size or choose Custom to define your own dimensions"
+                                    ToolTip.visible: hovered
                                 }
 
                                 ColumnLayout {
