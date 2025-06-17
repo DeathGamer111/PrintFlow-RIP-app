@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Dialogs
 import Qt.labs.platform
 import QtCore
 
@@ -194,6 +193,9 @@ Item {
             Layout.fillHeight: true
             Layout.margins: 12
             clip: true
+            
+            ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
             ListView {
                 id: jobListView
@@ -319,8 +321,8 @@ Item {
                             ? outputFileDialog.open()
                             : printSelectedJobDirectly()
                     }
-                    ToolTip.text: "Generate PRN file or print directly to the selected printer."
-                    ToolTip.visible: hovered
+                    // ToolTip.text: "Generate PRN file or print directly to the selected printer."
+                    // ToolTip.visible: hovered
                 }
             }
         }
@@ -367,8 +369,9 @@ Item {
         Connections {
             target: printJobNocai
 
-            onPrnGenerationFinished: function(success) {
+            function onPrnGenerationFinished(success) {
                 appState.isGeneratingPRN = false
+                
                 if (success) {
                     console.log("PRN generated successfully:", outputFileDialog.file)
                     toast.show("PRN generated successfully.")

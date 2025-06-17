@@ -6,7 +6,14 @@ import Qt.labs.platform
 Page {
     id: editorPage
     required property string imagePath
-    property string tempPath: imagePath + ".edit_tmp"
+    //    property string tempPath: imagePath + ".edit_tmp"
+    
+    property string tempPath: {
+	let parts = imagePath.split(".")
+	let ext = parts.length > 1 ? parts[parts.length - 1] : "png"
+	return imagePath + ".edit_tmp." + ext
+    }
+
 
     property bool isDirty: true
     property string currentTool: "none"
@@ -337,8 +344,8 @@ Page {
 
                 Button {
                     text: "Back"
-                    ToolTip.text: "Return to the job list while discarding changes."
-                    ToolTip.visible: hovered
+                    // ToolTip.text: "Return to the job list while discarding changes."
+                    // ToolTip.visible: hovered
                     onClicked: {
                         if (isDirty) {
                             toast.show("Unsaved changes. Press back again to discard?")

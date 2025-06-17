@@ -23,9 +23,8 @@ public:
     Q_INVOKABLE bool loadInputImage(const QString& imagePath);
     Q_INVOKABLE bool applyICCConversion(const QString& inputProfile, const QString& outputProfile);
     Q_INVOKABLE bool generateFinalPRN(const QString& outputPath, int xdpi, int ydpi);
-
-    // Temp Pipeline for PRN script
-    Q_INVOKABLE bool generatePRNviaScript(const QString& imagePath, const QString& outputPath, int xdpi, int ydpi);
+    
+    // Internal Assets Handling for Blue Noise Mask and ICC Profiles
     Q_INVOKABLE void prepareNocaiAssets();
     Q_INVOKABLE void cleanupTemporaryFiles(const QString& baseName, const QString& workingDir);
     Q_INVOKABLE void cleanupRuntimeAssets();
@@ -50,7 +49,7 @@ private:
     // Internal helpers
     Magick::Blob loadICCProfile(const QString& filePath);    
 
-    // Temp Pipeline for PRN Script
+    // PRN Generation Helper Functions
     QString assetsExtractPath;
     std::vector<std::vector<uint8_t>> dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, int width, int height);
     void apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap, int width, int height);

@@ -1,6 +1,7 @@
 #include "ImageLoader.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include <Magick++.h>
 
 #include <QFile>
 #include <QFileInfo>
@@ -8,6 +9,8 @@
 #include <QUrl>
 #include <QByteArray>
 #include <QDebug>
+
+using namespace Magick;
 
 
 /*******************************************************************
@@ -44,10 +47,10 @@ bool ImageLoader::validateFile(const QString &path) {
     QUrl url(path);
     QString localPath = url.isLocalFile() ? url.toLocalFile() : path;
 
-    QString ext = getFileExtension(localPath);
+    QString ext = getFileExtension(localPath).toLower();
     qDebug() << "Validating file:" << localPath << "with extension:" << ext;
 
-    if (ext == "jpeg" || ext == "jpg" || ext == "png" || ext == "bmp" || ext == "tiff" || ext == "tif") {
+    if (ext == "jpeg" || ext == "jpg" || ext == "png" || ext == "bmp") {
         QFile file(localPath);
         if (!file.exists()) {
             qWarning() << "File does not exist:" << localPath;
@@ -77,6 +80,29 @@ bool ImageLoader::validateFile(const QString &path) {
             return false;
         }
     }
+    
+    else if (ext == "tiff" || ext == "tif") {
+	
+	// Use Magick++ for TIFF files
+	QFile file(localPath);
+	if (!file.exists()) {
+	    qWarning() << "File does not exist:" << localPath;
+	    return false;
+	}
+
+	try {
+	    Image image;
+	    image.read(localPath.toStdString());
+	    qDebug() << "TIFF image loaded successfully with dimensions:"
+		     << image.columns() << "x" << image.rows()
+		     << "and depth:" << image.depth();
+	    return true;
+	} catch (const Magick::Exception &error) {
+	    qWarning() << "Magick++ failed to load TIFF image:" << error.what();
+	    return false;
+	}
+    }
+    
     else if (ext == "svg" || ext == "pdf") {
         QFile file(localPath);
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {

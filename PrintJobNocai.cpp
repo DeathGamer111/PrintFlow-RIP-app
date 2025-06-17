@@ -48,16 +48,17 @@ Magick::Blob PrintJobNocai::loadICCProfile(const QString& path) {
 }
 
 
+/* // Little CMS ICC Conversion
 bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QString& outputProfile) {
     try {
-        QString inPath = QUrl(inputProfile).toLocalFile();
-        QString outPath = QUrl(outputProfile).toLocalFile();
+	QString inPath = inputProfile;
+	QString outPath = outputProfile;
 
         // Load ICC profiles
         cmsHPROFILE inputICC = cmsOpenProfileFromFile(inPath.toStdString().c_str(), "r");
         cmsHPROFILE outputICC = cmsOpenProfileFromFile(outPath.toStdString().c_str(), "r");
         if (!inputICC || !outputICC) {
-            qWarning() << "❌ Failed to load one or both ICC profiles.";
+            qWarning() << "Failed to load one or both ICC profiles.";
             if (inputICC) cmsCloseProfile(inputICC);
             if (outputICC) cmsCloseProfile(outputICC);
             return false;
@@ -68,7 +69,7 @@ bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QStrin
                                                      outputICC, TYPE_CMYK_8,
                                                      INTENT_PERCEPTUAL, 0);
         if (!transform) {
-            qWarning() << "❌ Failed to create ICC transform.";
+            qWarning() << "Failed to create ICC transform.";
             cmsCloseProfile(inputICC);
             cmsCloseProfile(outputICC);
             return false;
@@ -77,6 +78,7 @@ bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QStrin
         // Prepare input and output buffers
         int width = static_cast<int>(inputImage.columns());
         int height = static_cast<int>(inputImage.rows());
+        inputImage.depth(8);  // Ensures 8-bit component depth
         std::vector<uchar> rgbBuffer(width * height * 3);
         std::vector<uchar> cmykBuffer(width * height * 4);
 
@@ -91,12 +93,24 @@ bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QStrin
         cmsCloseProfile(inputICC);
         cmsCloseProfile(outputICC);
 
-        // Create CMYK Magick image
-        cmykImage = Magick::Image(Magick::Geometry(width, height), "white");
-        cmykImage.depth(8);
-        cmykImage.type(Magick::TrueColorType);
-        cmykImage.colorSpace(Magick::CMYKColorspace);
-        cmykImage.read(width, height, "CMYK", Magick::CharPixel, cmykBuffer.data());
+	// Create CMYK Magick image from raw buffer (no constructor)
+	cmykImage = Magick::Image(Magick::Geometry(width, height), "white");
+	cmykImage.depth(8);
+
+	// Set correct color space and pixel interpretation *before* reading in data
+	cmykImage.modifyImage();
+	cmykImage.colorSpace(Magick::CMYKColorspace);
+	cmykImage.type(Magick::ColorSeparationType);
+
+	// Now load pixels into image
+	cmykImage.read(width, height, "CMYK", Magick::CharPixel, cmykBuffer.data());
+
+	// Force set again in case it got internally overridden
+	cmykImage.colorSpace(Magick::CMYKColorspace);
+	cmykImage.type(Magick::ColorSeparationType);
+
+	qDebug() << "cmykImage colorspace enum:" << static_cast<int>(cmykImage.colorSpace());
+
 
         // Embed the output ICC profile into CMYK image
         std::ifstream profileFile(outPath.toStdString(), std::ios::binary);
@@ -106,139 +120,129 @@ bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QStrin
             cmykImage.profile("icc", profileBlob);
         }
 
-        // Extract CMYK channels
-        cmykChannels = separateCMYK(cmykImage);
-
-        qDebug() << "✅ ICC conversion succeeded using:" << inPath << "→" << outPath;
+        qDebug() << "ICC conversion succeeded using:" << inPath << "→" << outPath;
         return true;
 
     } catch (const Magick::Exception& e) {
-        qWarning() << "❌ Exception during ICC conversion:" << e.what();
+        qWarning() << "Exception during ICC conversion:" << e.what();
+        return false;
+    }
+}
+*/
+
+
+bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QString& outputProfile) {
+    try {
+	std::ifstream inFile(inputProfile.toStdString(), std::ios::binary);
+        std::ifstream outFile(outputProfile.toStdString(), std::ios::binary);
+
+        if (!inFile || !outFile) {
+            qWarning() << "Failed to load one or both ICC profiles.";
+            return false;
+        }
+        
+        // Remove any embedded profiles before applying destination
+        inputImage.profile("icc", Magick::Blob()); // Clear embedded profile
+
+        // Load and apply input profile (e.g., sRGB)
+        std::vector<char> inData((std::istreambuf_iterator<char>(inFile)), {});
+        Magick::Blob inBlob(inData.data(), inData.size());
+        inputImage.profile("icc", inBlob); // Attach source profile
+
+        // Load and apply destination profile (e.g., CMYK printer)
+        std::vector<char> outData((std::istreambuf_iterator<char>(outFile)), {});
+        Magick::Blob outBlob(outData.data(), outData.size());
+        inputImage.profile("icc", outBlob); // Apply new profile
+
+        // Force Magick to convert to CMYK colorspace
+	inputImage.colorSpace(Magick::CMYKColorspace);
+	inputImage.type(Magick::ColorSeparationType);
+
+        // Save the result as CMYK image
+        cmykImage = inputImage;
+
+        return true;
+
+    } catch (const Magick::Exception& e) {
+        qWarning() << "ICC conversion failed:" << e.what();
         return false;
     }
 }
 
 
-bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi)
-{
+
+bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi) {
     try {
-        const QString localOutput = QUrl(outputPath).toLocalFile();
+        const std::vector<int> nocaiOrder = {2, 1, 0, 3}; // Y, M, C, K
+        const QStringList chKeys = {"c", "m", "y", "k"};
 
-        // === Hardcoded precomputed masks ===
-        const QString cMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_c.tiff";
-        const QString mMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_m.tiff";
-        const QString yMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_y.tiff";
-        const QString kMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_k.tiff";
+        if (inputImage.colorSpace() != Magick::CMYKColorspace) {
+            qWarning() << "Input image is not in CMYK colorspace.";
+            return false;
+        }
 
-        const std::array<QString, 4> maskPaths = {cMaskPath, mMaskPath, yMaskPath, kMaskPath};
-        const std::array<int, 4> nocaiOrder = {2, 1, 0, 3}; // Y, M, C, K
-
-        std::array<std::vector<std::vector<uint8_t>>, 4> packedLines;
+        // === Step 1: Separate CMYK channels
+        auto cmykChannels = separateCMYK(inputImage);
         int width = static_cast<int>(cmykChannels[0].columns());
         int height = static_cast<int>(cmykChannels[0].rows());
+
+        // === Step 2: Prepare blue noise mask paths
+        std::array<QString, 4> maskPaths;
+        for (int i = 0; i < 4; ++i)
+            maskPaths[i] = assetsExtractPath + QString("/mask_256_%1.tiff").arg(chKeys[i]);
+
+        // === Step 3: Process each channel
+        std::vector<std::vector<std::vector<uint8_t>>> allPacked(4); // [channel][row][byte]
 
         for (int ch = 0; ch < 4; ++ch) {
             Magick::Image& channelImg = cmykChannels[ch];
             Magick::Image maskImg;
             maskImg.read(maskPaths[ch].toStdString());
 
-            channelImg.type(Magick::GrayscaleType);
-            maskImg.type(Magick::GrayscaleType);
-
+            // Extract raw pixel data
             std::vector<uint8_t> channelBytes(width * height);
             std::vector<uint8_t> maskBytes(width * height);
-            std::vector<uint8_t> dithered(width * height, 0);
-
             channelImg.write(0, 0, width, height, "I", Magick::CharPixel, channelBytes.data());
             maskImg.write(0, 0, width, height, "I", Magick::CharPixel, maskBytes.data());
 
-            // === FX Thresholding (equivalent to -fx 'u>=v?1:0') ===
+            // Apply FM screen (u >= v ? 1 : 0)
+            std::vector<uint8_t> dithered(width * height, 0);
             for (int i = 0; i < width * height; ++i)
                 dithered[i] = (channelBytes[i] >= maskBytes[i]) ? 255 : 0;
 
-            // === Dot Classification Phase ===
-            std::vector<std::vector<uint8_t>> dotMap(height, std::vector<uint8_t>(width, 0));
-            for (int y = 0; y < height; ++y) {
-                for (int x = 0; x < width; ++x) {
-                    if (dithered[y * width + x] < 128) continue; // No dot
+            // Classify dots by mask thresholds
+            auto dotMap = dotClassification(dithered, maskBytes, width, height);
 
-                    uint8_t t = maskBytes[y * width + x];
-                    if (t >= 192) dotMap[y][x] = 1;
-                    else if (t >= 128) dotMap[y][x] = 2;
-                    else dotMap[y][x] = 3;
-                }
-            }
+            // Promote small/medium dots
+            apply4x4Promotion(dotMap, width, height);
 
-            // === 4×4 Neighborhood Promotion ===
-            for (int y = 1; y < height - 2; ++y) {
-                for (int x = 1; x < width - 2; ++x) {
-                    if (dotMap[y][x] == 3) continue;
-
-                    int count = 0;
-                    for (int dy = -1; dy <= 2; ++dy)
-                        for (int dx = -1; dx <= 2; ++dx)
-                            if (dotMap[y + dy][x + dx] > 0)
-                                ++count;
-
-                    if (count >= 12)
-                        dotMap[y][x] = 3;
-                }
-            }
-
-            // === Pack to 2BPP ===
-            const int bytesPerLine = (width + 3) / 4;
-            packedLines[ch].resize(height);
-
-            for (int y = 0; y < height; ++y) {
-                std::vector<uint8_t>& line = packedLines[ch][y];
-                line.reserve(bytesPerLine);
-                uint8_t byte = 0;
-                int idx = 0;
-
-                for (int x = 0; x < width; ++x) {
-                    uint8_t level = dotMap[y][x] & 0x03;
-                    byte |= level << ((3 - (idx % 4)) * 2);
-                    ++idx;
-
-                    if (idx % 4 == 0) {
-                        line.push_back(byte);
-                        byte = 0;
-                    }
-                }
-
-                if (idx % 4 != 0) line.push_back(byte);
-                while (line.size() % 4 != 0) line.push_back(0);
-            }
+            // Pack into 2BPP format
+            auto packed = packTo2BPP(dotMap, width, height);
+            allPacked[ch] = std::move(packed);
         }
 
-        // === PRN Header ===
-        std::ofstream out(localOutput.toStdString(), std::ios::binary);
-        const uint32_t bytesPerLineOut = static_cast<uint32_t>(packedLines[0][0].size());
-
-        uint32_t header[12] = {
-            0x00005555,
-            static_cast<uint32_t>(xdpi),
-            static_cast<uint32_t>(ydpi),
-            bytesPerLineOut,
-            static_cast<uint32_t>(height),
-            static_cast<uint32_t>(width),
-            0, 4, 1, 1, 0, 0
-        };
-
-        out.write(reinterpret_cast<const char*>(header), sizeof(header));
-
-        for (int row = 0; row < height; ++row)
-            for (int ch : nocaiOrder)
-                out.write(reinterpret_cast<const char*>(packedLines[ch][row].data()), packedLines[ch][row].size());
-
-        out.close();
-        qDebug() << "✅ Final PRN file created:" << localOutput;
-        return true;
+        // === Step 4: Write PRN file
+        return writePRNFile(allPacked, nocaiOrder, width, height, xdpi, ydpi, outputPath);
 
     } catch (const Magick::Exception& e) {
-        qWarning() << "❌ PRN generation failed:" << e.what();
+        qWarning() << "PRN generation failed:" << e.what();
         return false;
     }
+}
+
+
+
+// === Private Helpers ===
+
+void PrintJobNocai::runPRNGeneration(const QString& imagePath, const QString& outputPath, int xdpi, int ydpi) {
+    (void) QtConcurrent::run([=]() {
+        bool success =
+            loadInputImage(imagePath) &&
+            applyICCConversion(assetsExtractPath + "/sRGBProfile.icm", assetsExtractPath + "/RIP_App_Plain_720.icm") &&
+            generateFinalPRN(outputPath, xdpi, ydpi);
+
+        emit prnGenerationFinished(success);
+    });
 }
 
 
@@ -263,152 +267,6 @@ std::array<Magick::Image, 4> PrintJobNocai::separateCMYK(Magick::Image& cmykImag
 
     return channels;
 }
-
-
-
-/*
-bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi)
-{
-    try {
-        const QString localOutput = QUrl(outputPath).toLocalFile();
-
-        // === Hardcoded precomputed masks ===
-        const QString cMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_c.tiff";
-        const QString mMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_m.tiff";
-        const QString yMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_y.tiff";
-        const QString kMaskPath = "/home/mccalla/Downloads/precomputed_masks/mask_k.tiff";
-
-        const std::array<QString, 4> maskPaths = {cMaskPath, mMaskPath, yMaskPath, kMaskPath};
-        const std::array<int, 4> nocaiOrder = {2, 1, 0, 3}; // Y, M, C, K
-
-        std::array<std::vector<std::vector<uint8_t>>, 4> packedLines;
-        int width = static_cast<int>(cmykChannels[0].columns());
-        int height = static_cast<int>(cmykChannels[0].rows());
-
-        for (int ch = 0; ch < 4; ++ch) {
-            Magick::Image& channelImg = cmykChannels[ch];
-            Magick::Image maskImg;
-            maskImg.read(maskPaths[ch].toStdString());
-
-            channelImg.type(Magick::GrayscaleType);
-            maskImg.type(Magick::GrayscaleType);
-
-            std::vector<uint8_t> channelBytes(width * height);
-            std::vector<uint8_t> maskBytes(width * height);
-
-            channelImg.write(0, 0, width, height, "I", Magick::CharPixel, channelBytes.data());
-            maskImg.write(0, 0, width, height, "I", Magick::CharPixel, maskBytes.data());
-
-            // === Dot Classification Phase ===
-            std::vector<std::vector<uint8_t>> dotMap(height, std::vector<uint8_t>(width, 0));
-            for (int y = 0; y < height; ++y) {
-                for (int x = 0; x < width; ++x) {
-                    uint8_t ink = channelBytes[y * width + x];
-                    if (ink < 128) continue; // No ink
-
-                    uint8_t t = maskBytes[y * width + x];
-                    if (t >= 192) dotMap[y][x] = 1;
-                    else if (t >= 128) dotMap[y][x] = 2;
-                    else dotMap[y][x] = 3;
-                }
-            }
-
-            // === 4×4 Neighborhood Promotion ===
-            for (int y = 1; y < height - 2; ++y) {
-                for (int x = 1; x < width - 2; ++x) {
-                    if (dotMap[y][x] == 3) continue;
-
-                    int count = 0;
-                    for (int dy = -1; dy <= 2; ++dy)
-                        for (int dx = -1; dx <= 2; ++dx)
-                            if (dotMap[y + dy][x + dx] > 0)
-                                ++count;
-
-                    if (count >= 12)
-                        dotMap[y][x] = 3;
-                }
-            }
-
-            // === Pack to 2BPP ===
-            const int bytesPerLine = (width + 3) / 4;
-            packedLines[ch].resize(height);
-
-            for (int y = 0; y < height; ++y) {
-                std::vector<uint8_t>& line = packedLines[ch][y];
-                line.reserve(bytesPerLine);
-                uint8_t byte = 0;
-                int idx = 0;
-
-                for (int x = 0; x < width; ++x) {
-                    uint8_t level = dotMap[y][x] & 0x03;
-                    byte |= level << ((3 - (idx % 4)) * 2);
-                    ++idx;
-
-                    if (idx % 4 == 0) {
-                        line.push_back(byte);
-                        byte = 0;
-                    }
-                }
-
-                if (idx % 4 != 0) line.push_back(byte);
-                while (line.size() % 4 != 0) line.push_back(0);
-            }
-        }
-
-        // === PRN Header ===
-        std::ofstream out(localOutput.toStdString(), std::ios::binary);
-        const uint32_t bytesPerLineOut = static_cast<uint32_t>(packedLines[0][0].size());
-
-        uint32_t header[12] = {
-            0x00005555,
-            static_cast<uint32_t>(xdpi),
-            static_cast<uint32_t>(ydpi),
-            bytesPerLineOut,
-            static_cast<uint32_t>(height),
-            static_cast<uint32_t>(width),
-            0, 4, 1, 1, 0, 0
-        };
-
-        out.write(reinterpret_cast<const char*>(header), sizeof(header));
-
-        for (int row = 0; row < height; ++row)
-            for (int ch : nocaiOrder)
-                out.write(reinterpret_cast<const char*>(packedLines[ch][row].data()), packedLines[ch][row].size());
-
-        out.close();
-        qDebug() << "Final PRN file created:" << localOutput;
-        return true;
-
-    } catch (const Magick::Exception& e) {
-        qWarning() << "❌ PRN generation failed:" << e.what();
-        return false;
-    }
-}
-
-
-// === Private Helpers ===
-
-std::array<Magick::Image, 4> PrintJobNocai::separateCMYK(const Magick::Image& cmyk) {
-    std::array<Magick::Image, 4> result;
-
-    std::array<Magick::ChannelType, 4> channels = {
-        Magick::CyanChannel, Magick::MagentaChannel,
-        Magick::YellowChannel, Magick::BlackChannel
-    };
-
-    for (int i = 0; i < 4; ++i) {
-        Magick::Image separated = cmyk;
-        separated.channel(channels[i]);               // View only this channel
-        separated.type(Magick::GrayscaleType);        // Ensure proper type
-        separated.quantizeColorSpace(Magick::GRAYColorspace); // Force colorspace
-        separated.quantizeColors(256);
-        separated.quantize();
-        result[i] = separated;
-    }
-
-    return result;
-}
-*/
 
 
 std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, int width, int height) {
@@ -475,6 +333,7 @@ std::vector<std::vector<uint8_t>> PrintJobNocai::packTo2BPP(const std::vector<st
     return packedLines;
 }
 
+
 bool PrintJobNocai::writePRNFile(
         const std::vector<std::vector<std::vector<uint8_t>>>& packedLines,
         const std::vector<int>& channelOrder,
@@ -516,93 +375,6 @@ bool PrintJobNocai::writePRNFile(
 }
 
 
-void PrintJobNocai::runPRNGeneration(const QString& imagePath, const QString& outputPath, int xdpi, int ydpi) {
-    (void) QtConcurrent::run([=]() {
-        bool success = generatePRNviaScript(imagePath, outputPath, xdpi, ydpi);
-        emit prnGenerationFinished(success);
-    });
-}
-
-
-bool PrintJobNocai::generatePRNviaScript(const QString& imagePath, const QString& outputPath, int xdpi, int ydpi) {
-
-    // 0. Create temp working directory for intermediary TIFFs
-    std::unique_ptr<QTemporaryDir> workingDir = std::make_unique<QTemporaryDir>();
-    QString tempPath = workingDir->path();
-
-    // 1. Reference the extracted script from prepareNocaiAssets()
-    QString scriptPath = assetsExtractPath + "/cmyk_dither_mask.sh";
-    if (!QFile::exists(scriptPath)) {
-        qWarning() << "Script missing at:" << scriptPath;
-        return false;
-    }
-
-    // 2. Run the bash script
-    QStringList args { imagePath, outputPath, QString::number(xdpi), QString::number(ydpi), tempPath };
-    QProcess process;
-    process.setProgram("/bin/bash");
-    process.setArguments(QStringList() << scriptPath << args);
-    process.setProcessChannelMode(QProcess::MergedChannels);
-
-    process.start();
-    if (!process.waitForStarted()) {
-        qWarning() << "Failed to start script process.";
-        return false;
-    }
-
-    process.waitForFinished(-1);
-    qDebug() << process.readAllStandardOutput();
-
-    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
-        qWarning() << "Script failed with exit code:" << process.exitCode();
-        return false;
-    }
-
-    // 3. Load intermediate TIFFs and masks
-    QFileInfo fileInfo(imagePath);
-    QString baseName = fileInfo.baseName();
-    std::array<QString, 4> channels = { "c", "m", "y", "k" };
-    std::array<std::vector<std::vector<uint8_t>>, 4> packedLines;
-
-    int width = 0, height = 0;
-
-    for (int i = 0; i < 4; ++i) {
-        QString ch = channels[i];
-        QString ditherPath = tempPath + QString("/%1_%2_1bit.tiff").arg(baseName, ch);
-        QString maskPath   = tempPath + QString("/%1_%2_mask.tiff").arg(baseName, ch);
-
-        Magick::Image ditherImage(ditherPath.toStdString());
-        Magick::Image maskImage(maskPath.toStdString());
-
-        int w = static_cast<int>(ditherImage.columns());
-        int h = static_cast<int>(ditherImage.rows());
-
-        if (i == 0) {
-            width = w;
-            height = h;
-        } else if (w != width || h != height) {
-            qWarning() << "Size mismatch across channels!";
-            return false;
-        }
-
-        std::vector<uint8_t> dithered(width * height);
-        std::vector<uint8_t> maskBytes(width * height);
-
-        ditherImage.write(0, 0, width, height, "I", Magick::CharPixel, dithered.data());
-        maskImage.write(0, 0, width, height, "I", Magick::CharPixel, maskBytes.data());
-
-        auto dotMap = dotClassification(dithered, maskBytes, width, height);
-        apply4x4Promotion(dotMap, width, height);
-        packedLines[i] = packTo2BPP(dotMap, width, height);
-    }
-
-    // 4. Write final PRN file
-    std::vector<int> nocaiOrder = { 2, 1, 0, 3 };  // Y M C K
-    return writePRNFile(std::vector<std::vector<std::vector<uint8_t>>>(packedLines.begin(), packedLines.end()),
-                        nocaiOrder, width, height, xdpi, ydpi, outputPath);
-}
-
-
 void PrintJobNocai::prepareNocaiAssets() {
     assetsExtractPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/runtime_assets";
     QDir().mkpath(assetsExtractPath);
@@ -615,7 +387,7 @@ void PrintJobNocai::prepareNocaiAssets() {
 
     // ICC Profiles
     copyIfMissing(":/assets/sRGBProfile.icm", assetsExtractPath + "/sRGBProfile.icm");
-    copyIfMissing(":/assets/RIP_App_Plain_Paper.icm", assetsExtractPath + "/RIP_App_Plain_Paper.icm");
+    copyIfMissing(":/assets/RIP_App_Plain_720.icm", assetsExtractPath + "/RIP_App_Plain_720.icm");
 
     // Blue Noise Masks (256)
     copyIfMissing(":/assets/blue_noise_mask_256/mask_c.tiff", assetsExtractPath + "/mask_256_c.tiff");

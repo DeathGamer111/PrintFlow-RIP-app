@@ -2,6 +2,8 @@
 
 A cross-platform (Linux & Android) Qt-based Raster Image Processing (RIP) application designed for production printing environments. RIP App enables flexible print job management, image editing, ICC color profile conversion, and PRN output generation for both CUPS-supported printers and Nocai hardware.
 
+## Version: 1.0 Beta
+
 ---
 
 ## 🔧 Features

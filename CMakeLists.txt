@@ -6,10 +6,10 @@ project(RIPPrinterApp VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Widgets)
 
-qt_standard_project_setup(REQUIRES 6.8)
-# set(CMAKE_AUTOMOC ON)
-# set(CMAKE_AUTORCC ON)
-# set(CMAKE_AUTOUIC ON)
+# qt_standard_project_setup(REQUIRES 6.8)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
 
 # ImageMagick Setup
 find_package(PkgConfig REQUIRED)
@@ -65,10 +65,8 @@ qt_add_resources(appRIPPrinterApp
         assets/blue_noise_mask_512/mask_m.tiff
         assets/blue_noise_mask_512/mask_y.tiff
         assets/blue_noise_mask_512/mask_k.tiff
-        assets/RIP_App_Plain_Paper.icm
+        assets/RIP_App_Plain_720.icm
         assets/sRGBProfile.icm
-        assets/magick
-        scripts/cmyk_dither_mask.sh
 )
 
 
