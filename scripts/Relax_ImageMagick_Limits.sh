@@ -1,10 +1,6 @@
 #!/bin/bash
 
-# Ensure we're running with sudo (elevated privileges)
-if [ "$EUID" -ne 0 ]; then
-    echo "🔐 This script requires administrator privileges. Please enter your password..."
-    exec sudo "$0" "$@"
-fi
+# No sudo logic here — assume it's run with elevated privileges
 
 # Common policy.xml paths
 CANDIDATES=(
