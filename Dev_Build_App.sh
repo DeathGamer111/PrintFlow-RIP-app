@@ -20,7 +20,8 @@ sudo apt-get install -y \
     qml6-module-qtquick-dialogs libqt6widgets6 qml6-module-qtpositioning \
     qml6-module-qtcore qml6-module-qtquick-window qml-module-qtquick-shapes \
     qt5-qmltooling-plugins qt6-image-formats-plugins libqt6widgets6 \
-    libqt6svg6 libqt6svgwidgets6
+    libqt6svg6 libqt6svgwidgets6 qml6-module-qtqml-workerscript \
+    qml6-module-qtquick-templates
 
 echo "🧹 Cleaning and creating build directory..."
 sudo rm -rf ~/.local/share/appRIPPrinterApp/
@@ -35,6 +36,10 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug
 echo "🛠️ Building the app..."
 make -j"$(nproc)"
 
+# === Run ImageMagick policy relaxer ===
+echo "🔓 Relaxing ImageMagick security limits..."
+sudo bash ../scripts/Relax_ImageMagick_Limits.sh
+
 echo "✅ Build complete. Run the app using:"
 echo "   cd ${BUILD_DIR} && ./RIP_App"
-
+echo "   or use /build/appRIPPrinterApp"
