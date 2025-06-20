@@ -21,6 +21,12 @@ for FILE in "${CANDIDATES[@]}"; do
         sed -i 's/<policy domain="resource" name="memory" value="[^"]*"\/>/<policy domain="resource" name="memory" value="2GiB"\/>/' "$FILE"
         sed -i 's/<policy domain="resource" name="map" value="[^"]*"\/>/<policy domain="resource" name="map" value="4GiB"\/>/' "$FILE"
         sed -i 's/<policy domain="resource" name="disk" value="[^"]*"\/>/<policy domain="resource" name="disk" value="8GiB"\/>/' "$FILE"
+        
+        # Remove or update PDF restrictions
+        if grep -q '<policy domain="coder" rights="none" pattern="PDF"' "$FILE"; then
+            echo "🔓 Enabling PDF support by modifying policy."
+            sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/' "$FILE"
+        fi
 
         echo "✅ Successfully updated ImageMagick resource limits."
         exit 0

@@ -3,6 +3,8 @@
 #include "stb_image.h"
 #include <Magick++.h>
 
+#include <QTemporaryFile>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
@@ -18,6 +20,49 @@ using namespace Magick;
 *******************************************************************/
 ImageLoader::ImageLoader(QObject *parent) : QObject(parent) {
     supportedExtensions = { ".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".tif", ".svg", ".pdf" };
+}
+
+
+// Preview image for PDF files
+QString ImageLoader::renderPdfToPreviewImage(const QString& pdfPath) {
+    try {
+        Magick::Image image;
+
+        // Read first page of PDF
+        image.read(pdfPath.toStdString() + "[0]");
+        image.density("150");
+        image.quality(90);
+        image.backgroundColor("white");
+        image.alphaChannel(Magick::RemoveAlphaChannel);  // Remove transparency
+
+        // Downscale for preview
+        const int maxWidth = 1000;
+        if (image.columns() > maxWidth) {
+            double scale = static_cast<double>(maxWidth) / image.columns();
+            image.resize(Magick::Geometry(maxWidth, static_cast<int>(image.rows() * scale)));
+        }
+
+        QTemporaryFile tempFile(QDir::tempPath() + "/pdf_preview_XXXXXX.png");
+        tempFile.setAutoRemove(false);
+        if (!tempFile.open()) return "";
+
+        QString tempPath = tempFile.fileName();
+        image.write(tempPath.toStdString());
+        return tempPath;
+    } catch (const Magick::Exception &err) {
+        qWarning() << "Failed to render PDF preview:" << err.what();
+        return "";
+    }
+}
+
+
+// Delete Temporary files used to display a Preview Image for PDFs
+void ImageLoader::deleteTemporaryFile(const QString& path) {
+    QFile temp(path);
+    if (temp.exists()) {
+        temp.remove();
+        qDebug() << "Temporary preview deleted:" << path;
+    }
 }
 
 
@@ -37,8 +82,8 @@ bool ImageLoader::isSupportedExtension(const QString &path) {
 
 // Extract metadata for supported image, SVG, or PDF files
 QVariantMap ImageLoader::extractMetadata(const QString &path) {
-    QString ext = getFileExtension(path);
-    return (ext == "svg" || ext == "pdf") ? inspectSvgOrPdf(path) : inspectImage(path);
+    QString ext = getFileExtension(path).toLower();
+    return (ext == "svg") ? inspectSvgOrPdf(path) : inspectImage(path);
 }
 
 
@@ -81,40 +126,37 @@ bool ImageLoader::validateFile(const QString &path) {
         }
     }
     
-    else if (ext == "tiff" || ext == "tif") {
-	
-	// Use Magick++ for TIFF files
-	QFile file(localPath);
-	if (!file.exists()) {
-	    qWarning() << "File does not exist:" << localPath;
-	    return false;
-	}
+else if (ext == "tif" || ext == "tiff" || ext == "pdf") {
+        // Use Magick++ for TIFF and PDF
+        if (!QFile::exists(localPath)) {
+            qWarning() << "File does not exist:" << localPath;
+            return false;
+        }
 
-	try {
-	    Image image;
-	    image.read(localPath.toStdString());
-	    qDebug() << "TIFF image loaded successfully with dimensions:"
-		     << image.columns() << "x" << image.rows()
-		     << "and depth:" << image.depth();
-	    return true;
-	} catch (const Magick::Exception &error) {
-	    qWarning() << "Magick++ failed to load TIFF image:" << error.what();
-	    return false;
-	}
+        try {
+            Image image;
+            image.read(localPath.toStdString() + (ext == "pdf" ? "[0]" : ""));
+            qDebug() << (ext == "pdf" ? "PDF" : "TIFF")
+                     << "image loaded with dimensions:"
+                     << image.columns() << "x" << image.rows()
+                     << "and color space:" << static_cast<int>(image.colorSpace());
+            return true;
+        } catch (const Magick::Exception &error) {
+            qWarning() << "Magick++ failed to load" << ext << "image:" << error.what();
+            return false;
+        }
     }
     
-    else if (ext == "svg" || ext == "pdf") {
+    else if (ext == "svg") {
         QFile file(localPath);
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            qWarning() << "Failed to open text-based file:" << localPath;
+            qWarning() << "Failed to open SVG file:" << localPath;
             return false;
         }
         QTextStream in(&file);
         QString header = in.readLine();
-        qDebug() << "Header line:" << header;
-
-        bool isValid = (ext == "svg" && header.contains("<svg")) || (ext == "pdf" && header.contains("%PDF"));
-        qDebug() << "Header check passed:" << isValid;
+        bool isValid = header.contains("<svg");
+        qDebug() << "SVG header check passed:" << isValid;
         return isValid;
     }
 
@@ -123,6 +165,95 @@ bool ImageLoader::validateFile(const QString &path) {
 }
 
 
+// Extract metadata (dimensions, format hints) from image files
+QVariantMap ImageLoader::inspectImage(const QString &path) {
+    QVariantMap meta;
+    QUrl url(path);
+    QString localPath = url.isLocalFile() ? url.toLocalFile() : path;
+
+    QString ext = getFileExtension(localPath).toLower();
+    QFileInfo info(localPath);
+    meta["name"] = info.fileName();
+    meta["size"] = info.size();
+    meta["extension"] = "." + ext;
+
+    // Use Magick++ for PDF and TIFF
+    if (ext == "tiff" || ext == "tif" || ext == "pdf") {
+        try {
+            Image image;
+            image.read(localPath.toStdString() + (ext == "pdf" ? "[0]" : ""));
+            meta["width"] = static_cast<int>(image.columns());
+            meta["height"] = static_cast<int>(image.rows());
+            
+            // Estimate channels based on color space
+	    int channelCount = (image.matte() ? 4 : 3);
+            if (image.colorSpace() == Magick::CMYKColorspace) {
+		channelCount = 4;
+	    }
+ 	    
+ 	    meta["channels"] = channelCount;
+
+	   // Convert color space enum to string
+	    QString colorSpaceName;
+	    switch (image.colorSpace()) {
+	    	case Magick::RGBColorspace:        colorSpaceName = "RGB"; break;
+	    	case Magick::CMYKColorspace:       colorSpaceName = "CMYK"; break;
+	    	case Magick::GRAYColorspace:       colorSpaceName = "Grayscale"; break;
+	    	case Magick::LabColorspace:        colorSpaceName = "Lab"; break;
+	    	case Magick::YCbCrColorspace:      colorSpaceName = "YCbCr"; break;
+	    	case Magick::Rec601YCbCrColorspace:colorSpaceName = "Rec601 YCbCr"; break;
+	    	default:                           colorSpaceName = "Unknown"; break;
+	    }
+	    
+	    meta["colorProfile"] = colorSpaceName;
+
+        } catch (const Magick::Exception &error) {
+            qWarning() << "Failed to extract metadata from" << ext << ":" << error.what();
+        }
+        return meta;
+    }
+
+    // Use STB for standard formats
+    QFile file(localPath);
+    if (!file.open(QIODevice::ReadOnly)) return meta;
+    QByteArray imageData = file.readAll();
+
+    int w = 0, h = 0, c = 0;
+    unsigned char* data = stbi_load_from_memory(
+        reinterpret_cast<const stbi_uc*>(imageData.constData()),
+        imageData.size(), &w, &h, &c, 0);
+
+    if (!data) return meta;
+    stbi_image_free(data);
+
+    meta["width"] = w;
+    meta["height"] = h;
+    meta["channels"] = c;
+
+    // Color profile inference via heuristic
+    QString content(imageData);
+    QString profile = "Unknown";
+
+    const QStringList hints = {
+        "sRGB", "Adobe RGB", "CMYK", "Cyan", "Magenta", "Yellow", "Black",
+        "Ic", "Im", "IndexColor", "Indexed", "Palette", "8-color", "16-color",
+        "YCbCr", "LAB", "XYZ", "Gray", "Grayscale", "Mono"
+    };
+
+    for (const QString& hint : hints) {
+        if (content.contains(hint, Qt::CaseInsensitive)) {
+            profile = hint;
+            break;
+        }
+    }
+
+    meta["colorProfile"] = profile;
+    return meta;
+}
+
+
+
+/*
 // Extract metadata (dimensions, format hints) from bitmap image files
 QVariantMap ImageLoader::inspectImage(const QString &path) {
     QVariantMap meta;
@@ -172,7 +303,7 @@ QVariantMap ImageLoader::inspectImage(const QString &path) {
 
     return meta;
 }
-
+*/
 
 // Extract metadata from vector/PDF files (name, size, basic format)
 QVariantMap ImageLoader::inspectSvgOrPdf(const QString &path) {

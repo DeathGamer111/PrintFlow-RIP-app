@@ -316,7 +316,13 @@ Item {
                 Button {
                     text: "Print Job"
                     enabled: selectedIndexes.length > 0
-                    onClicked: {
+                    onClicked: {                    
+			const job = jobModel.getJob(selectedIndexes[0])
+			const jobName = job.name || "UntitledJob"
+			const downloads = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+			const fullPath = downloads + "/" + jobName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".prn"
+			outputFileDialog.currentFile = fullPath
+
                         appState.usingSimulatedPrinter
                             ? outputFileDialog.open()
                             : printSelectedJobDirectly()
@@ -351,6 +357,7 @@ Item {
             title: "Select PRN File Destination"
             nameFilters: ["PRN Files (*.prn)", "All Files (*)"]
             fileMode: FileDialog.SaveFile
+	    defaultSuffix: "prn"
             onAccepted: {
                 const outputPath = file
                 const job = jobModel.getJob(selectedIndexes[0])

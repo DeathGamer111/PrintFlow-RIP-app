@@ -14,6 +14,9 @@ class ImageLoader : public QObject {
 public:
     explicit ImageLoader(QObject *parent = nullptr);
 
+    Q_INVOKABLE QString renderPdfToPreviewImage(const QString& pdfPath);
+    Q_INVOKABLE void deleteTemporaryFile(const QString& path);
+
     Q_INVOKABLE bool validateFile(const QString &path);             // Validate if file is supported and loadable
     Q_INVOKABLE QVariantMap extractMetadata(const QString &path);   // Extract metadata from supported file
     Q_INVOKABLE bool isSupportedExtension(const QString &path);     // Check file extension support

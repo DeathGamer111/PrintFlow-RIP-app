@@ -236,10 +236,25 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
 
 void PrintJobNocai::runPRNGeneration(const QString& imagePath, const QString& outputPath, int xdpi, int ydpi) {
     (void) QtConcurrent::run([=]() {
-        bool success =
-            loadInputImage(imagePath) &&
-            applyICCConversion(assetsExtractPath + "/sRGBProfile.icm", assetsExtractPath + "/RIP_App_Plain_720.icm") &&
-            generateFinalPRN(outputPath, xdpi, ydpi);
+        bool success = false;
+
+        if (loadInputImage(imagePath)) {
+            // Only apply ICC conversion if the image is NOT already CMYK
+            if (inputImage.colorSpace() != Magick::CMYKColorspace) {
+                qDebug() << "Input is not CMYK — applying ICC conversion (sRGB → RIP CMYK)";
+                success = applyICCConversion(
+                    assetsExtractPath + "/sRGBProfile.icm",
+                    assetsExtractPath + "/RIP_App_Plain_720.icm"
+                );
+            } else {
+                qDebug() << "Input image is already CMYK — skipping ICC conversion.";
+                success = true; // No need to convert
+            }
+
+            if (success) {
+                success = generateFinalPRN(outputPath, xdpi, ydpi);
+            }
+        }
 
         emit prnGenerationFinished(success);
     });

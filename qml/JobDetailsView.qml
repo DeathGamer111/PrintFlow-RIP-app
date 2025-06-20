@@ -11,6 +11,7 @@ Item {
     required property var jobModel
     property var jobData: jobModel.getJob(jobIndex)
     property string imagePath: jobData.imagePath
+    property string tempPreviewPath: ""
     property var imageMeta: ({})
     property var appState
     property string selectedInputICC: ""
@@ -23,13 +24,32 @@ Item {
     Component.onCompleted: {
         if (jobData.imagePath !== "") {
             updateMetadata(jobData.imagePath)
+            
+            if (jobData.imagePath.toLowerCase().endsWith(".pdf")) {
+            	const previewPath = imageLoader.renderPdfToPreviewImage(jobData.imagePath)
+            	
+            	if (previewPath !== "") {
+                    imagePath = "file://" + previewPath
+                    tempPreviewPath = previewPath
+            	} else {
+                    console.warn("Failed to regenerate preview for PDF.")
+                    imagePath = ""
+            	}
+            } else {
+            	imagePath = jobData.imagePath
+            	tempPreviewPath = ""
+            }
+
+            if (imageMeta.width > 0 && imageMeta.height > 0) {
+            	updateResolutionFromMetadata()
+            }
         }
 
         if (appState.selectedPrinter.length > 0) {
-                    safeSelectFirstSupported(profileBox, printJobOutput.supportedColorModes())
-                    safeSelectFirstSupported(paperSizeBox, printJobOutput.supportedMediaSizes())
-                    // TODO: Add more fields as neccessary
-                }
+            safeSelectFirstSupported(profileBox, printJobOutput.supportedColorModes())
+            safeSelectFirstSupported(paperSizeBox, printJobOutput.supportedMediaSizes())
+            // TODO: Add more fields as neccessary
+	}
     }
 
     onVisibleChanged: {
@@ -225,26 +245,41 @@ Item {
                             id: imageDialog
                             title: "Select Image for Job"
                             nameFilters: ["Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.svg *.pdf)"]
+                            
                             onAccepted: {
+                            	var filePath = String(file)
+                            	
                                 if (imageLoader.isSupportedExtension(file)) {
                                     if (imageLoader.validateFile(file)) {
                                         updateMetadata(file)
-                                        updateImagePath(file)
-                                        imagePath = file
+					
+				    	if (filePath.toLowerCase().endsWith(".pdf")) {
+					    const previewPath = imageLoader.renderPdfToPreviewImage(file)
+					    
+					    if (previewPath !== "") {
+					        imagePath = "file://" + previewPath
+					        tempPreviewPath = previewPath // Track for later cleanup
+	        			    } else {
+					    	console.warn("Failed to render PDF preview.")
+	        			    }                			    
+            			        } else {
+                		            imagePath = file
+                		            tempPreviewPath = "" // Clear old preview if switching to non-PDF
+            			    	}
 
-                                        if (imageMeta.width > 0 && imageMeta.height > 0) {
-                                            updateResolutionFromMetadata()
-                                        }
+				        updateImagePath(filePath)
+
+				        if (imageMeta.width > 0 && imageMeta.height > 0) {
+					    updateResolutionFromMetadata()
+				    	}
+                                    } else {
+                                    	console.warn("File validation failed.")
                                     }
-                                    else {
-                                        console.warn("File validation failed.")
-                                    }
-                                }
-                                else {
+			    	} else {
                                     console.warn("Unsupported file type.")
-                                }
-                            }
-                        }
+			    	}
+			    }
+			}
 
                         Label {
                             text: "Printer Settings"
@@ -529,7 +564,13 @@ Item {
 
                 Button {
                     text: "Back"
-                    onClicked: stackView.pop()
+                    onClicked: {
+                    	if (tempPreviewPath !== "") {
+				imageLoader.deleteTemporaryFile(tempPreviewPath)
+			        tempPreviewPath = ""
+		        }
+                    	stackView.pop()
+                    }
                 }
 
                 Toast {
