@@ -228,13 +228,6 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
 				}
 			}
 
-
-/*            std::vector<uint8_t> dithered(width * height, 0);
-            for (int i = 0; i < width * height; ++i)
-                dithered[i] = (channelBytes[i] >= maskBytes[i]) ? 255 : 0;
-*/
-
-
             // Classify dots by mask thresholds
             auto dotMap = dotClassification(dithered, maskBytes, width, height);
 
