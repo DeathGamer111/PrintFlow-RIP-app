@@ -215,11 +215,25 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
             std::vector<uint8_t> maskBytes(width * height);
             channelImg.write(0, 0, width, height, "I", Magick::CharPixel, channelBytes.data());
             maskImg.write(0, 0, width, height, "I", Magick::CharPixel, maskBytes.data());
-
+            
             // Apply FM screen (u >= v ? 1 : 0)
             std::vector<uint8_t> dithered(width * height, 0);
+			const uint8_t INK_THRESHOLD = 2;  // Minimum value for ink to be considered
+
+			for (int i = 0; i < width * height; ++i) {
+				if (channelBytes[i] < INK_THRESHOLD) {
+					dithered[i] = 0;  // Treat as blank — do not screen
+				} else {
+					dithered[i] = (channelBytes[i] >= maskBytes[i]) ? 255 : 0;
+				}
+			}
+
+
+/*            std::vector<uint8_t> dithered(width * height, 0);
             for (int i = 0; i < width * height; ++i)
                 dithered[i] = (channelBytes[i] >= maskBytes[i]) ? 255 : 0;
+*/
+
 
             // Classify dots by mask thresholds
             auto dotMap = dotClassification(dithered, maskBytes, width, height);
