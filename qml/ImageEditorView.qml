@@ -6,14 +6,12 @@ import Qt.labs.platform
 Page {
     id: editorPage
     required property string imagePath
-    //    property string tempPath: imagePath + ".edit_tmp"
     
     property string tempPath: {
-	let parts = imagePath.split(".")
-	let ext = parts.length > 1 ? parts[parts.length - 1] : "png"
-	return imagePath + ".edit_tmp." + ext
+		let parts = imagePath.split(".")
+		let ext = parts.length > 1 ? parts[parts.length - 1] : "png"
+		return imagePath + ".edit_tmp." + ext
     }
-
 
     property bool isDirty: true
     property string currentTool: "none"
@@ -29,13 +27,19 @@ Page {
     property real saturation: 0
     property real sharpness: 0
     property real gamma: 0
-    property string overlayText: "Sample Text"
+    
+    function refreshImageSize() {
+	    resizeWidthSpin.value = imageEditor.getImageWidth()
+	    resizeHeightSpin.value = imageEditor.getImageHeight()
+	}
 
     Component.onCompleted: {
         if (imageEditor.loadImage(imagePath)) {
             imageEditor.saveImage(tempPath)
+            
             if (imageEditor.loadImage(tempPath)) {
                 refreshImage()
+				refreshImageSize()
             } else {
                 console.warn("Failed to load temp image for editing")
             }
@@ -114,16 +118,77 @@ Page {
                             title: "View"
                             Layout.fillWidth: true
 
-                            GridLayout {
-                                columns: 4
-                                anchors.horizontalCenter: parent.horizontalCenter
+							ColumnLayout {
+								spacing: 12
+								Layout.fillWidth: true
+								anchors.horizontalCenter: parent.horizontalCenter
 
-                                Button { text: "Original Size"; onClicked: apply("resizeOriginal") }
-                                Button { text: "Half Size"; onClicked: apply("resizeHalf") }
-                                Button { text: "Double Size"; onClicked: apply("resizeDouble") }
-                                Button { text: "Resize" }
-                            }
-                        }
+								RowLayout {
+									spacing: 10
+									Layout.fillWidth: true
+									Layout.alignment: Qt.AlignHCenter
+
+									Button { 
+										text: "Original Size"
+										onClicked: {
+											apply("resizeOriginal")
+											refreshImageSize()
+										} 
+									}
+									Button {
+										text: "Half Size"
+										onClicked: {
+											apply("resizeHalf") 
+											refreshImageSize()
+										}
+									}
+									Button {
+										text: "Double Size"
+										onClicked: {
+											apply("resizeDouble")
+											refreshImageSize()
+										}
+									}
+								}
+
+								Label { 
+									text: "Resize (Width × Height)" 
+									Layout.alignment: Qt.AlignHCenter
+								}
+
+								RowLayout {
+									spacing: 8
+									Layout.fillWidth: true
+									Layout.alignment: Qt.AlignHCenter
+
+									SpinBox {
+										id: resizeWidthSpin
+										from: 1; to: 10000
+										value: 100
+										editable: true
+										validator: IntValidator { bottom: 1 }
+									}
+
+									Label { text: "×" }
+
+									SpinBox {
+										id: resizeHeightSpin
+										from: 1; to: 10000
+										value: 100
+										editable: true
+										validator: IntValidator { bottom: 1 }
+									}
+
+									Button {
+										text: "Resize"
+										onClicked: apply("resize", {
+											x: resizeWidthSpin.value,
+											y: resizeHeightSpin.value
+										})
+									}
+								}
+							}
+						}
 
                         // === Transform Tools ===
                         GroupBox {
@@ -158,7 +223,7 @@ Page {
                                         Layout.fillWidth: true
                                         onValueChanged: {
                                             brightness = value
-                                            apply("brightnessContrast", { brightness, contrast })
+                                            apply("brightness", { brightness })
                                         }
                                     }
                                     Label { text: brightness.toFixed(0) }
@@ -169,15 +234,24 @@ Page {
                                     Label { text: "Contrast" }
                                     Slider {
                                         id: contrastSlider
-                                        from: -100; to: 100
-                                        value: contrast
+                                        from: 0
+										to: 100
+										value: 50
+										stepSize: 1
                                         Layout.fillWidth: true
-                                        onValueChanged: {
-                                            contrast = value
-                                            apply("brightnessContrast", { brightness, contrast })
-                                        }
-                                    }
-                                    Label { text: contrast.toFixed(0) }
+
+										onValueChanged: {
+											let contrastAmount = Math.abs(value - 50) / 2.0;  // range: 0 → 25
+											let increase = value >= 50;
+
+											contrast = contrastAmount;
+
+											if (contrastAmount > 0.1) {
+												apply("contrast", { increase, contrast: contrastAmount });
+											}
+										}
+									}
+									Label { text: contrast.toFixed(1) }
                                 }
 
                                 RowLayout {
@@ -234,7 +308,7 @@ Page {
                                     Slider {
                                         id: gammaSlider
                                         value: gamma
-                                        from: 0.1; to: 5.0
+                                        from: 0; to: 5.0
                                         stepSize: 0.1
                                         Layout.fillWidth: true
                                         onValueChanged: {
@@ -261,40 +335,6 @@ Page {
                                 Button { text: "Vignette"; onClicked: apply("vignette") }
                                 Button { text: "Swirl"; onClicked: apply("swirl", 90) }
                                 Button { text: "Implode"; onClicked: apply("implode", 0.5) }
-                            }
-                        }
-
-                        // === Drawing Tools ===
-                        GroupBox {
-                            title: "Text Overlay"
-                            Layout.fillWidth: true
-
-                            ColumnLayout {
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                RowLayout {
-                                    spacing: 10
-
-                                    TextField {
-                                        placeholderText: "Enter text to draw"
-                                        text: overlayText
-                                        onTextChanged: overlayText = text
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Button { text: "Draw Text"; onClicked: apply("text", { text: overlayText, x: 100, y: 100 }) }
-                                }
-
-                                RowLayout {
-                                    spacing: 10
-
-                                    TextField {
-                                        placeholderText: "Enter deminsions for rectangle"
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Button { text: "Draw Rect"; onClicked: apply("drawRect", { x: 50, y: 50, w: 100, h: 100 }) }
-                                }
                             }
                         }
                     }
@@ -327,7 +367,10 @@ Page {
                     onClicked: {
                         if (imageEditor.undo()) {
                             isDirty = true
-                            refreshImage()
+							imageEditor.saveImage(tempPath)
+							refreshImage()
+							refreshImageSize()
+							resetSliders()
                         }
                     }
                 }
@@ -337,7 +380,10 @@ Page {
                     onClicked: {
                         if (imageEditor.redo()) {
                             isDirty = true
-                            refreshImage()
+							imageEditor.saveImage(tempPath)
+							refreshImage()
+							refreshImageSize()
+							resetSliders()
                         }
                     }
                 }
@@ -370,18 +416,30 @@ Page {
 
     function cleanupAndExit() {
         imageEditor.deleteFile(tempPath)
+        imageEditor.clearUndoRedoStacks()
         stackView.pop()
     }
+    
+    function resetSliders() {
+		brightnessSlider.value = brightness
+		contrastSlider.value = contrast
+		hueSlider.value = hue
+		saturationSlider.value = saturation
+		sharpenSlider.value = sharpness
+		gammaSlider.value = gamma
+	}
 
     function apply(type, value) {
         const actions = {
             "flip":                 () => imageEditor.flip(value),
             "rotate":               () => imageEditor.rotate(value),
             "brightnessContrast":   () => imageEditor.adjustBrightnessContrast(value.brightness, value.contrast),
+            "brightness":			() => imageEditor.adjustBrightness(value.brightness),
+            "contrast": 			() => imageEditor.adjustContrast(value.increase, value.contrast, 128.0),
             "hue":                  () => imageEditor.adjustHue(value),
             "saturation":           () => imageEditor.adjustSaturation(value),
             "gamma":                () => imageEditor.adjustGamma(value),
-            "sharpen":              () => imageEditor.applySharpen(value),
+            "sharpen":              () => imageEditor.sharpenImage(value),
             "blur":                 () => imageEditor.applyBlur(value),
             "sepia":                () => imageEditor.applySepia(),
             "vignette":             () => imageEditor.applyVignette(),
@@ -390,9 +448,8 @@ Page {
             "resizeOriginal":       () => imageEditor.resizeToOriginal(),
             "resizeHalf":           () => imageEditor.resizeToHalf(),
             "resizeDouble":         () => imageEditor.resizeToDouble(),
+            "resize":				() => imageEditor.resizeImage(value.x, value.y),
             "crop":                 () => imageEditor.crop(value.x, value.y, value.w, value.h),
-            "text":                 () => imageEditor.drawText(value.text, value.x, value.y),
-            "drawRect":             () => imageEditor.drawRectangle(value.x, value.y, value.w, value.h)
         }
 
         let ok = false

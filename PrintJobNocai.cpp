@@ -155,11 +155,8 @@ bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QStrin
         inputImage.profile("icc", outBlob); // Apply new profile
 
         // Force Magick to convert to CMYK colorspace
-	inputImage.colorSpace(Magick::CMYKColorspace);
-	inputImage.type(Magick::ColorSeparationType);
-
-        // Save the result as CMYK image
-        cmykImage = inputImage;
+		inputImage.colorSpace(Magick::CMYKColorspace);
+		inputImage.type(Magick::ColorSeparationType);
 
         return true;
 
@@ -168,7 +165,6 @@ bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QStrin
         return false;
     }
 }
-
 
 
 bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi) {
@@ -180,18 +176,33 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
             qWarning() << "Input image is not in CMYK colorspace.";
             return false;
         }
+        
+        // === Step 1: Apply scaling based on DPI        
+      	double scaleX = static_cast<double>(xdpi) / 720.0;
+        double scaleY = static_cast<double>(ydpi) / 720.0;
 
-        // === Step 1: Separate CMYK channels
-        auto cmykChannels = separateCMYK(inputImage);
+        if (scaleX != 1.0 || scaleY != 1.0) {
+            int newWidth = static_cast<int>(inputImage.columns() * scaleX);
+            int newHeight = static_cast<int>(inputImage.rows() * scaleY);
+
+			// Apply Resize to fit output DPI
+			QString resizeGeometry = QString("%1x%2!").arg(newWidth).arg(newHeight);
+			inputImage.resize(Magick::Geometry(resizeGeometry.toStdString()));
+
+            qDebug() << "Rescaled image for output DPI:" << xdpi << "x" << ydpi << "→" << inputImage.columns() << "x" << inputImage.rows();
+        }
+        
+        // === Step 2: Separate CMYK channels
+		auto cmykChannels = separateCMYK(inputImage);
         int width = static_cast<int>(cmykChannels[0].columns());
         int height = static_cast<int>(cmykChannels[0].rows());
 
-        // === Step 2: Prepare blue noise mask paths
+        // === Step 3: Prepare blue noise mask paths
         std::array<QString, 4> maskPaths;
         for (int i = 0; i < 4; ++i)
             maskPaths[i] = assetsExtractPath + QString("/mask_256_%1.tiff").arg(chKeys[i]);
 
-        // === Step 3: Process each channel
+        // === Step 4: Process each channel
         std::vector<std::vector<std::vector<uint8_t>>> allPacked(4); // [channel][row][byte]
 
         for (int ch = 0; ch < 4; ++ch) {
@@ -221,7 +232,7 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
             allPacked[ch] = std::move(packed);
         }
 
-        // === Step 4: Write PRN file
+        // === Step 5: Write PRN file
         return writePRNFile(allPacked, nocaiOrder, width, height, xdpi, ydpi, outputPath);
 
     } catch (const Magick::Exception& e) {
@@ -232,30 +243,38 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
 
 
 
-// === Private Helpers ===
+// === Helper Functions ===
 
-void PrintJobNocai::runPRNGeneration(const QString& imagePath, const QString& outputPath, int xdpi, int ydpi) {
+void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath) {
     (void) QtConcurrent::run([=]() {
         bool success = false;
+        
+        const QString imagePath = jobMap["imagePath"].toString();
+        const QSize resolution = jobMap["resolution"].toSize();
+        const QString colorProfile = jobMap["colorProfile"].toString();
 
         if (loadInputImage(imagePath)) {
             // Only apply ICC conversion if the image is NOT already CMYK
             if (inputImage.colorSpace() != Magick::CMYKColorspace) {
                 qDebug() << "Input is not CMYK — applying ICC conversion (sRGB → RIP CMYK)";
-                success = applyICCConversion(
-                    assetsExtractPath + "/sRGBProfile.icm",
-                    assetsExtractPath + "/RIP_App_Plain_720.icm"
-                );
+
+                QString inputICC = assetsExtractPath + "/sRGBProfile.icm";
+                QString outputICC = defaultOutputICCPath;
+
+                success = applyICCConversion(inputICC, outputICC);
+                
             } else {
                 qDebug() << "Input image is already CMYK — skipping ICC conversion.";
                 success = true; // No need to convert
             }
 
             if (success) {
+            	int xdpi = resolution.width();
+                int ydpi = resolution.height();
+				
                 success = generateFinalPRN(outputPath, xdpi, ydpi);
             }
         }
-
         emit prnGenerationFinished(success);
     });
 }
@@ -390,6 +409,35 @@ bool PrintJobNocai::writePRNFile(
 }
 
 
+void PrintJobNocai::setDefaultOutputICCProfile(const QString& outputProfile) {
+    defaultOutputICCPath = outputProfile;
+    qDebug() << "Default output ICC profile set to:" << outputProfile;
+}
+
+
+QString PrintJobNocai::getDefaultOutputICCProfile() const {
+    return defaultOutputICCPath;
+}
+
+
+void PrintJobNocai::addICCProfile(const QString& name, const QString& path) {
+    availableICCProfiles.append({name, path});
+}
+
+
+QVariantList PrintJobNocai::getAvailableICCProfiles() const {
+    QVariantList list;
+    for (const auto& pair : availableICCProfiles) {
+        QVariantMap entry;
+        entry["name"] = pair.first;
+        entry["path"] = pair.second;
+        list.append(entry);
+    }
+    qDebug() << "Returning" << list.size() << "available ICC profiles.";
+    return list;
+}
+
+
 void PrintJobNocai::prepareNocaiAssets() {
     assetsExtractPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/runtime_assets";
     QDir().mkpath(assetsExtractPath);
@@ -404,31 +452,24 @@ void PrintJobNocai::prepareNocaiAssets() {
     copyIfMissing(":/assets/sRGBProfile.icm", assetsExtractPath + "/sRGBProfile.icm");
     copyIfMissing(":/assets/RIP_App_Plain_720.icm", assetsExtractPath + "/RIP_App_Plain_720.icm");
 
-    // Blue Noise Masks (256)
-    copyIfMissing(":/assets/blue_noise_mask_256/mask_c.tiff", assetsExtractPath + "/mask_256_c.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_256/mask_m.tiff", assetsExtractPath + "/mask_256_m.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_256/mask_y.tiff", assetsExtractPath + "/mask_256_y.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_256/mask_k.tiff", assetsExtractPath + "/mask_256_k.tiff");
+    // Blue Noise Masks (256x256 Tiles, 12000x12000 Size)
+    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_c.tiff", assetsExtractPath + "/mask_256_c.tiff");
+    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_m.tiff", assetsExtractPath + "/mask_256_m.tiff");
+    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_y.tiff", assetsExtractPath + "/mask_256_y.tiff");
+    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_k.tiff", assetsExtractPath + "/mask_256_k.tiff");
+    
+	auto addProfile = [&](const QString& name, const QString& qrcPath, const QString& fileName) {
+		QString destPath = assetsExtractPath + "/" + fileName;
+		if (!QFile::exists(destPath)) {
+			QFile::copy(qrcPath, destPath);
+		}
+		addICCProfile(name, destPath);
+	};
 
-    // Blue Noise Masks (512)
-    copyIfMissing(":/assets/blue_noise_mask_512/mask_c.tiff", assetsExtractPath + "/mask_512_c.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_512/mask_m.tiff", assetsExtractPath + "/mask_512_m.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_512/mask_y.tiff", assetsExtractPath + "/mask_512_y.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_512/mask_k.tiff", assetsExtractPath + "/mask_512_k.tiff");
-
-    // Script
-    QString scriptDest = assetsExtractPath + "/cmyk_dither_mask.sh";
-    if (!QFile::exists(scriptDest)) {
-        QFile::copy(":/scripts/cmyk_dither_mask.sh", scriptDest);
-        QFile::setPermissions(scriptDest, QFile::permissions(scriptDest) | QFileDevice::ExeUser);
-    }
-
-    // Image Magick Binary
-    QString magickDest = assetsExtractPath + "/magick";
-    if (!QFile::exists(magickDest)) {
-        QFile::copy(":/assets/magick", magickDest);
-        QFile::setPermissions(magickDest, QFile::permissions(magickDest) | QFileDevice::ExeUser | QFileDevice::ReadUser);
-    }
+    // ICC Profiles
+    addProfile("Plain Paper (720DPI)",  ":/assets/RIP_App_Plain_720.icm", "RIP_App_Plain_720.icm");
+    addProfile("sRGB Input", ":/assets/sRGBProfile.icm", "sRGBProfile.icm");
+    setDefaultOutputICCProfile((assetsExtractPath + "/RIP_App_Plain_720.icm"));
 
     qDebug() << "Nocai assets prepared in:" << assetsExtractPath;
 }
@@ -449,7 +490,7 @@ void PrintJobNocai::cleanupTemporaryFiles(const QString& baseName, const QString
             QFile::remove(path);
         }
     }
-
+    
     // Optionally remove entire working dir
     QDir dir(workingDir);
     if (dir.exists()) {

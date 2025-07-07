@@ -80,3 +80,6 @@ CMakeLists.txt.user*
 .rcc/
 .uic/
 /build*/
+
+# Large Files in Assets
+assets/blue_noise_mask_*/**

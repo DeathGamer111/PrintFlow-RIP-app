@@ -55,16 +55,12 @@ qt_add_resources(appRIPPrinterApp
         qml/PrinterSetupView.qml
         qml/DraggableItem.qml
         qml/Toast.qml
-	qml/ToolTip.qml
+		qml/ToolTip.qml
         assets/logo.png
-        assets/blue_noise_mask_256/mask_c.tiff
-        assets/blue_noise_mask_256/mask_m.tiff
-        assets/blue_noise_mask_256/mask_y.tiff
-        assets/blue_noise_mask_256/mask_k.tiff
-        assets/blue_noise_mask_512/mask_c.tiff
-        assets/blue_noise_mask_512/mask_m.tiff
-        assets/blue_noise_mask_512/mask_y.tiff
-        assets/blue_noise_mask_512/mask_k.tiff
+        assets/blue_noise_mask_256_12000/mask_c.tiff
+        assets/blue_noise_mask_256_12000/mask_m.tiff
+        assets/blue_noise_mask_256_12000/mask_y.tiff
+        assets/blue_noise_mask_256_12000/mask_k.tiff
         assets/RIP_App_Plain_720.icm
         assets/sRGBProfile.icm
 )

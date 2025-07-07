@@ -8,16 +8,22 @@ Page {
     required property StackView stackView
     required property var appState
 
-    Component.onCompleted: printJobOutput.refreshDetectedPrinters()
+    Component.onCompleted: {
+    	printJobOutput.refreshDetectedPrinters()
+    }
 
     property var nocaiPrinterCapabilities: {
         "X-33": {
-            resolutions: ["720x720", "1440x1440"],
+            resolutions: ["720x720", "720x1440", "720x2160"],
             mediaSizes: ["A1", "A2", "A3", "A4", "A5", "A6", "Tabloid"],
             duplexModes: ["None"],
             colorModes: ["CMYK", "CMYKWW", "CMYKWV"]
         }
     }
+    
+	ListModel {
+		id: iccProfileModel
+	}
 
     ColumnLayout {
         anchors.fill: parent
@@ -49,10 +55,17 @@ Page {
                     spacing: 10
                     Layout.fillWidth: true
                     anchors.horizontalCenter: parent.horizontalCenter
+                    
+					Label {
+						text: "Please Select your Nocai Printer"
+						font.bold: true
+						Layout.alignment: Qt.AlignCenter
+					}
 
                     ComboBox {
                         id: nocaiPrinterComboBox
-                        Layout.fillWidth: true
+						Layout.preferredWidth: 150
+						Layout.alignment: Qt.AlignCenter
                         model: ["X-33"]
 
                         onActivated: {
@@ -61,31 +74,102 @@ Page {
                                 appState.selectedPrinter = selected
                                 appState.usingSimulatedPrinter = true
 
-                                // Copy all necessary assets now
+             					// Prepare Nocai assets first
                                 printJobNocai.prepareNocaiAssets()
+
+                                // Reload ICC profiles and select the default
+								iccProfileModel.clear()
+								const profiles = printJobNocai.getAvailableICCProfiles()
+
+								for (let i = 0; i < profiles.length; ++i) {
+									iccProfileModel.append(profiles[i])
+								}
+
+								const currentDefault = printJobNocai.getDefaultOutputICCProfile()
+
+								for (let i = 0; i < iccProfileModel.count; ++i) {
+									if (iccProfileModel.get(i).path === currentDefault) {
+										Qt.callLater(() => {
+											iccProfileDropdown.currentIndex = i
+										})
+										break
+									}
+								}
 
                                 toast.show("Nocai printer selected: " + selected)
                             }
                         }
                     }
+
+					ColumnLayout {
+						spacing: 10
+		                Layout.fillWidth: true
+		                anchors.horizontalCenter: parent.horizontalCenter
+
+						Label {
+							text: " Select Default Output ICC Profile"
+							font.bold: true
+							Layout.alignment: Qt.AlignCenter
+						}
+
+						RowLayout {
+							spacing: 10
+							Layout.alignment: Qt.AlignHCenter
+							
+							ComboBox {
+								id: iccProfileDropdown
+								Layout.alignment: Qt.AlignVCenter
+								Layout.preferredWidth: 175
+								model: iccProfileModel
+								textRole: "name"
+
+								onCurrentIndexChanged: {
+									if (iccProfileModel.count > 0 && iccProfileDropdown.currentIndex >= 0) {
+										let selected = iccProfileModel.get(iccProfileDropdown.currentIndex)
+										printJobNocai.setDefaultOutputICCProfile(selected.path)
+									}
+								}
+							}
+
+							Button {
+								text: "Upload ICC Profile"
+								Layout.alignment: Qt.AlignVCenter
+								onClicked: iccUploadDialog.open()
+							}
+						}
+
+						FileDialog {
+							id: iccUploadDialog
+							title: "Select ICC Profile"
+							nameFilters: ["ICC Profiles (*.icc *.icm)", "All Files (*)"]
+							fileMode: FileDialog.OpenFile
+
+							onAccepted: {
+								let url = iccUploadDialog.file.toString()
+								let path = url.startsWith("file://") ? url.slice(7) : url
+								let name = path.split("/").pop()
+
+								iccProfileModel.append({ name: name, path: path })
+								iccProfileDropdown.currentIndex = iccProfileModel.count - 1
+
+								printJobNocai.addICCProfile(name, path)
+								printJobNocai.setDefaultOutputICCProfile(path)
+							}
+						}
+					}
+
                     ColumnLayout {
                         spacing: 10
                         Layout.fillWidth: true
                         anchors.horizontalCenter: parent.horizontalCenter
 
                         Label {
-                            text: "The Nocai printer engine generates PRN files instead of printing directly to the Printer."
+                            text: "The Nocai printer engine generates PRN files instead of printing directly to the Printer. This is intended for direct USB or offline transfer to a supported Nocai printer or software such as Atools."
                             wrapMode: Text.WordWrap
                             Layout.fillWidth: true
                             Layout.maximumWidth: 400
                         }
 
-                        Label {
-                            text: "This is intended for direct USB or offline transfer to a supported Nocai printer or software such as Atools."
-                            wrapMode: Text.WordWrap
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: 400
-                        }
                     }
                 }
             }

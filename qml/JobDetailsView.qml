@@ -16,6 +16,7 @@ Item {
     property var appState
     property string selectedInputICC: ""
     property string selectedOutputICC: ""
+    property string printedSizeDisplay: "Printed size unavailable"
     property bool loadingInputICC: true
 
 
@@ -39,22 +40,26 @@ Item {
             	imagePath = jobData.imagePath
             	tempPreviewPath = ""
             }
-
-            if (imageMeta.width > 0 && imageMeta.height > 0) {
-            	updateResolutionFromMetadata()
-            }
         }
+        
+        // Set saved DPI
+		const savedDPI = jobData.resolution.width + "x" + jobData.resolution.height
+		const dpiIdx = dpiOptions.indexOf(savedDPI)
+		resolutionComboBox.currentIndex = dpiIdx >= 0 ? dpiIdx : dpiOptions.indexOf("720x720")
+		updatePrintedSize()
 
         if (appState.selectedPrinter.length > 0) {
             safeSelectFirstSupported(profileBox, printJobOutput.supportedColorModes())
             safeSelectFirstSupported(paperSizeBox, printJobOutput.supportedMediaSizes())
             // TODO: Add more fields as neccessary
-	}
+		}
     }
 
     onVisibleChanged: {
         if (visible) {
-            refreshPreview()
+			jobData = jobModel.getJob(jobIndex)
+	        refreshPreview()
+	        updatePrintedSize()
         }
     }
 
@@ -107,17 +112,30 @@ Item {
         }
     }
 
-    function updateResolution() {
-        jobData.resolution = Qt.size(resolutionWidthSpin.value, resolutionHeightSpin.value)
-    }
+	property var dpiOptions: ["720x720", "720x1440", "720x2160"]
 
-    function updateResolutionFromMetadata() {
-        if (imageMeta.width !== undefined && imageMeta.height !== undefined) {
-            resolutionWidthSpin.value = imageMeta.width
-            resolutionHeightSpin.value = imageMeta.height
-            updateResolution()
-        }
-    }
+	function updateResolution() {
+		let dpiText = resolutionComboBox.currentText
+		let parts = dpiText.split("x")
+		if (parts.length === 2) {
+		    jobData.resolution = Qt.size(parseInt(parts[0]), parseInt(parts[1]))
+		}
+	}
+	
+	function updatePrintedSize() {
+		const dpi = 720
+		const w = imageMeta.width || 0
+		const h = imageMeta.height || 0
+
+		if (w > 0 && h > 0) {
+		    const printedWmm = ((w * 25.4) / dpi).toFixed(1)
+		    const printedHmm = ((h * 25.4) / dpi).toFixed(1)
+		    printedSizeDisplay = `Approx. Printed Size: ${printedWmm} mm × ${printedHmm} mm at 720 DPI`
+		} else {
+		    printedSizeDisplay = "Printed size unavailable"
+		}
+	}
+
 
     function updateOffset() {
         jobData.offset = Qt.point(offsetXSpin.value, offsetYSpin.value)
@@ -235,8 +253,10 @@ Item {
                                 // ToolTip.visible: hovered
                                 enabled: imagePath !== ""
                                 onClicked: {
-                                    toast.show("Imposition View Coming Soon!")
-                                    // stackView.push("qrc:/qml/ImpositionView.qml", { "jobData": jobData })
+									stackView.push("qrc:/qml/ImpositionView.qml", {
+										"jobIndex": jobIndex,
+										"jobModel": jobModel
+									})
                                 }
                             }
                         }
@@ -253,33 +273,31 @@ Item {
                                     if (imageLoader.validateFile(file)) {
                                         updateMetadata(file)
 					
-				    	if (filePath.toLowerCase().endsWith(".pdf")) {
-					    const previewPath = imageLoader.renderPdfToPreviewImage(file)
-					    
-					    if (previewPath !== "") {
-					        imagePath = "file://" + previewPath
-					        tempPreviewPath = previewPath // Track for later cleanup
-	        			    } else {
-					    	console.warn("Failed to render PDF preview.")
-	        			    }                			    
-            			        } else {
-                		            imagePath = file
-                		            tempPreviewPath = "" // Clear old preview if switching to non-PDF
-            			    	}
+										if (filePath.toLowerCase().endsWith(".pdf")) {
+											const previewPath = imageLoader.renderPdfToPreviewImage(file)
+							
+											if (previewPath !== "") {
+												imagePath = "file://" + previewPath
+												tempPreviewPath = previewPath // Track for later cleanup
+											} else {
+												console.warn("Failed to render PDF preview.")
+											}                			    
+				    			        } else {
+				        		            imagePath = file
+				        		            tempPreviewPath = "" // Clear old preview if switching to non-PDF
+				    			  		}
 
-				        updateImagePath(filePath)
+						    			updateImagePath(filePath)
+						    			updatePrintedSize()
 
-				        if (imageMeta.width > 0 && imageMeta.height > 0) {
-					    updateResolutionFromMetadata()
-				    	}
                                     } else {
                                     	console.warn("File validation failed.")
                                     }
-			    	} else {
-                                    console.warn("Unsupported file type.")
-			    	}
-			    }
-			}
+			    				} else {
+									console.warn("Unsupported file type.")
+								}
+							}
+						}
 
                         Label {
                             text: "Printer Settings"
@@ -342,33 +360,32 @@ Item {
                                     }
                                 }
 
-                                Label { text: "Resolution (Width × Height)" }
+
+								Label { text: "Output DPI (X × Y)" }								
                                 RowLayout {
                                     spacing: 8
                                     Layout.fillWidth: true
 
-                                    SpinBox {
-                                        id: resolutionWidthSpin
-                                        from: 1; to: 10000
-                                        value: jobData.resolution.width
-                                        editable: true
-                                        validator: IntValidator { bottom: 1 }
-                                        Layout.fillWidth: true
-                                        onValueChanged: updateResolution()
-                                    }
-
-                                    Label { text: "×" }
-
-                                    SpinBox {
-                                        id: resolutionHeightSpin
-                                        from: 1; to: 10000
-                                        value: jobData.resolution.height
-                                        editable: true
-                                        validator: IntValidator { bottom: 1 }
-                                        Layout.fillWidth: true
-                                        onValueChanged: updateResolution()
-                                    }
+                                    ComboBox {
+										id: resolutionComboBox
+										Layout.fillWidth: true
+										model: dpiOptions
+										currentIndex: {
+											const dpiString = jobData.resolution.width + "x" + jobData.resolution.height
+											const idx = dpiOptions.indexOf(dpiString)
+											return idx >= 0 ? idx : dpiOptions.indexOf("720x720")
+										}
+										onCurrentIndexChanged: updateResolution()
+									}
                                 }
+								
+								Label {
+									id: printedSizeLabel
+									text: printedSizeDisplay
+									font.italic: true
+									font.pointSize: 10
+									wrapMode: Text.Wrap
+								}
 
                                 Label { text: "Offset (X × Y)" }
                                 RowLayout {
@@ -552,7 +569,10 @@ Item {
                             name: jobNameField.text,
                             imagePath: jobData.imagePath,
                             paperSize: jobData.paperSize,
-                            resolution: Qt.size(resolutionWidthSpin.value, resolutionHeightSpin.value),
+                            resolution: (function() {
+								let parts = resolutionComboBox.currentText.split("x")
+								return (parts.length === 2) ? Qt.size(parseInt(parts[0]), parseInt(parts[1])) : Qt.size(720, 720)
+							})(),
                             offset: Qt.point(offsetXSpin.value, offsetYSpin.value),
                             whiteStrategy: whiteBox.currentText,
                             varnishType: varnishBox.currentText,
@@ -566,9 +586,9 @@ Item {
                     text: "Back"
                     onClicked: {
                     	if (tempPreviewPath !== "") {
-				imageLoader.deleteTemporaryFile(tempPreviewPath)
-			        tempPreviewPath = ""
-		        }
+							imageLoader.deleteTemporaryFile(tempPreviewPath)
+			        		tempPreviewPath = ""
+		        		}
                     	stackView.pop()
                     }
                 }

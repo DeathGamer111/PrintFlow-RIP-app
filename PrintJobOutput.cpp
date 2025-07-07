@@ -11,6 +11,10 @@
 #include <QUrl>
 #include <QSet>
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 
 /****************************************************************************
     PrintJobOutput Constructor: initializes and refreshes available printers.
@@ -481,3 +485,8 @@ bool PrintJobOutput::generatePRNviaFilter(const PrintJob &job, const QString ppd
 
     return QFile::exists(outputPath);
 }
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+

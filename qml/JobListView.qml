@@ -365,11 +365,7 @@ Item {
                 appState.isGeneratingPRN = true
 
                 // Use threaded function implemented in C++
-                printJobNocai.runPRNGeneration(
-                    job.imagePath,
-                    outputPath,
-                    720, 720
-                )
+                printJobNocai.runPRNGeneration(job, outputPath)
             }
         }
 

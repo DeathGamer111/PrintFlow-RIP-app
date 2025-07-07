@@ -17,7 +17,6 @@ public:
         IdRole = Qt::UserRole + 1,
         NameRole,
         ImagePathRole,
-        ImagePositionRole,
         PaperSizeRole,
         ResolutionRole,
         OffsetRole,

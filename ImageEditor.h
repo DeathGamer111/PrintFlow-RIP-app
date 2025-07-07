@@ -1,5 +1,7 @@
 #include <QObject>
 #include <QString>
+#include <QSize>
+#include <QFileInfo>
 #include <Magick++.h>
 
 
@@ -19,6 +21,9 @@ public:
     Q_INVOKABLE bool loadImage(const QString &path);                        // Load image from file
     Q_INVOKABLE bool saveImage(const QString &outputPath);                  // Save image to file
     Q_INVOKABLE bool deleteFile(const QString &path);                       // Delete file from disk
+    Q_INVOKABLE int getImageWidth() const;									// Get Image Width
+	Q_INVOKABLE int getImageHeight() const;									// Get Image Height
+
 
     // Transformations
     Q_INVOKABLE bool rotate(double degrees);                                // Rotate image by degrees
@@ -32,12 +37,13 @@ public:
     Q_INVOKABLE bool resizeToDouble();                                      // Scale image to 200%
 
     // Enhancement operations
-    Q_INVOKABLE bool adjustHue(int hue);                                    // Adjust hue in range +/- 100
-    Q_INVOKABLE bool adjustSaturation(int saturation);                      // Adjust saturation in range +/- 100
-    Q_INVOKABLE bool adjustBrightnessContrast(int brightness, int contrast);// Adjust brightness/contrast
-    Q_INVOKABLE bool adjustGamma(double gamma);                             // Adjust gamma level
-    Q_INVOKABLE bool sharpenImage(double radius = 1.0, double sigma = 0.5); // Apply sharpening
-
+    Q_INVOKABLE bool adjustHue(int hue);                                    				// Adjust hue in range +/- 100
+    Q_INVOKABLE bool adjustSaturation(int saturation);                      				// Adjust saturation in range +/- 100
+    Q_INVOKABLE bool adjustBrightness(int brightness);										// Adjust brightness
+    Q_INVOKABLE bool adjustGamma(double gamma);                             				// Adjust gamma level
+    Q_INVOKABLE bool sharpenImage(double radius = 1.0, double sigma = 0.5); 				// Apply sharpening
+	Q_INVOKABLE bool adjustContrast(bool increase, double contrastAmount, double midpoint);	// Adjust contrast
+	
     // Effects
     Q_INVOKABLE bool applyBlur(double radius = 0.0, double sigma = 1.0);    // Apply Gaussian blur
     Q_INVOKABLE bool applySepia(double threshold = 80.0);                   // Apply sepia tone
@@ -51,9 +57,28 @@ public:
 
     // Accessor
     QString currentImagePath() const { return imagePath; }
+    
+    // Undo/Redo Actions
+    Q_INVOKABLE bool undo();
+	Q_INVOKABLE bool redo();
+	Q_INVOKABLE void clearUndoRedoStacks();
+	
+	// Imposition Updates
+	Q_INVOKABLE bool applyImpositionEdits(const QString &imagePath, int offsetX, int offsetY, QSize paperSize, const QVariantMap &overlayData = {});
+
+
 
 private:
     Magick::Image m_image;
     QString imagePath;
     bool m_imageLoaded = false;
+    
+    void pushUndoState();
+    std::vector<Magick::Image> m_undoStack;
+	std::vector<Magick::Image> m_redoStack;
+	
+	double m_brightness = 100.0;
+	double m_saturation = 100.0;
+	double m_hue = 100.0;
+
 };

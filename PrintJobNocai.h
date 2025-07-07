@@ -10,11 +10,12 @@
 
 class PrintJobNocai : public QObject {
     Q_OBJECT
+
 signals:
     void prnGenerationFinished(bool success);
 
 public slots:
-    Q_INVOKABLE void runPRNGeneration(const QString& imagePath, const QString& outputPath, int xdpi, int ydpi);
+    Q_INVOKABLE void runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath);
 
 public:
     explicit PrintJobNocai(QObject* parent = nullptr);
@@ -28,12 +29,17 @@ public:
     Q_INVOKABLE void prepareNocaiAssets();
     Q_INVOKABLE void cleanupTemporaryFiles(const QString& baseName, const QString& workingDir);
     Q_INVOKABLE void cleanupRuntimeAssets();
+    
+    // ICC Profile Handling
+    Q_INVOKABLE QVariantList getAvailableICCProfiles() const;
+    Q_INVOKABLE QString getDefaultOutputICCProfile() const;
+    Q_INVOKABLE void setDefaultOutputICCProfile(const QString& outputProfile);
+    Q_INVOKABLE void addICCProfile(const QString& name, const QString& path);
 
 private:
 
     // Internal images and data
     Magick::Image inputImage;                        // RGB input (temporary copy)
-    Magick::Image cmykImage;                         // CMYK converted image
     std::array<Magick::Image, 4> cmykChannels;       // C, M, Y, K separated
     std::array<Magick::Image, 4> thresholdMasks;     // Blue noise masks per channel
     std::array<std::vector<uint8_t>, 4> dotMaps;     // Dot size maps per channel
@@ -47,7 +53,9 @@ private:
     std::unique_ptr<QTemporaryDir> tempDir;
 
     // Internal helpers
-    Magick::Blob loadICCProfile(const QString& filePath);    
+    Magick::Blob loadICCProfile(const QString& filePath);
+    QString defaultOutputICCPath;
+    QList<QPair<QString, QString>> availableICCProfiles; // name, path
 
     // PRN Generation Helper Functions
     QString assetsExtractPath;
