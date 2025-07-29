@@ -17,10 +17,11 @@ Item {
     property string selectedInputICC: ""
     property string selectedOutputICC: ""
     property string printedSizeDisplay: "Printed size unavailable"
+    property var dpiOptions: ["720x720", "720x1440", "720x2160"]
     property bool loadingInputICC: true
 
-
-    anchors.fill: parent
+	width: parent ? parent.width : 450
+	height: parent ? parent.height : 600
 
     Component.onCompleted: {
         if (jobData.imagePath !== "") {
@@ -112,8 +113,6 @@ Item {
         }
     }
 
-	property var dpiOptions: ["720x720", "720x1440", "720x2160"]
-
 	function updateResolution() {
 		let dpiText = resolutionComboBox.currentText
 		let parts = dpiText.split("x")
@@ -136,7 +135,6 @@ Item {
 		}
 	}
 
-
     function updateOffset() {
         jobData.offset = Qt.point(offsetXSpin.value, offsetYSpin.value)
     }
@@ -152,46 +150,64 @@ Item {
     function updateColorProfile() {
         jobData.colorProfile = profileBox.currentText
     }
+    
+    function updateDotStrategy() {
+		jobData.minInkThreshold = minInkSpin.value
+		jobData.smallDotThreshold = smallDotSpin.value
+		jobData.medDotThreshold = medDotSpin.value
+		jobData.enablePromotion = promotionCheck.checked
+	}
 
     function updateMetadata(path) {
         imageMeta = imageLoader.extractMetadata(path)
     }
 
     ColumnLayout {
-        anchors.fill: parent
+        width: parent.width
+    	height: parent.height
 
         ScrollView {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+	        id: scrollView
+			Layout.alignment: Qt.AlignHCenter
+			Layout.fillHeight: true
 
             ScrollBar.vertical.interactive: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-            Component.onCompleted: {
-                contentItem.flickableDirection = Flickable.VerticalFlick
-            }
+			// Wait until flickableItem is ready
+			Connections {
+				target: scrollView
+				function onContentItemChanged() {
+					if (scrollView.flickableItem) {
+						scrollView.flickableItem.flickDeceleration = 500		// default is 3000
+						scrollView.flickableItem.maximumFlickVelocity = 8000 	// default is 2500
+					}
+				}
+			}
 
             Column {
-                width: parent.width
-                spacing: 0
-                anchors.horizontalCenter: parent.horizontalCenter
+            	width: implicitWidth
+				Layout.alignment: Qt.AlignHCenter
+				spacing: 0
 
                 Pane {
-                    width: Math.min(parent.width, 450)
-                    padding: 20
+					Layout.alignment: Qt.AlignHCenter
+					Layout.minimumWidth: 300
+					Layout.preferredWidth: 400
+					Layout.maximumWidth: 450
+					padding: 20
 
                     ColumnLayout {
-                        id: columnContent
-                        spacing: 16
-                        anchors.fill: parent
+						id: columnContent
+						spacing: 16
+						Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignHCenter
 
                         TextField {
                             id: jobNameField
                             text: jobData.name
                             placeholderText: "Enter Job Name"
                             Layout.fillWidth: true
-                            // ToolTip.text: "Enter a name to identify this print job"
-                            // ToolTip.visible: hovered
                         }
 
                         Rectangle {
@@ -233,14 +249,10 @@ Item {
                             Button {
                                 text: "Upload Image"
                                 onClicked: imageDialog.open()
-                                // ToolTip.text: "Select an image to associate with this print job"
-                                // ToolTip.visible: hovered
                             }
 
                             Button {
                                 text: "Edit Image"
-                                // ToolTip.text: "Open image editor to make adjustments before printing"
-                                // ToolTip.visible: hovered
                                 enabled: imagePath !== ""
                                 onClicked: {
                                     stackView.push("qrc:/qml/ImageEditorView.qml", { "imagePath": imagePath })
@@ -249,8 +261,6 @@ Item {
 
                             Button {
                                 text: "Edit Imposition"
-                                // ToolTip.text: "Open Imposition editor to arrange how items will print out on the media"
-                                // ToolTip.visible: hovered
                                 enabled: imagePath !== ""
                                 onClicked: {
 									stackView.push("qrc:/qml/ImpositionView.qml", {
@@ -312,7 +322,7 @@ Item {
                             ColumnLayout {
                                 spacing: 10
                                 Layout.fillWidth: true
-                                anchors.horizontalCenter: parent.horizontalCenter
+                                Layout.alignment: Qt.AlignHCenter
 
                                 Label { text: "Paper Size" }
                                 ComboBox {
@@ -323,9 +333,6 @@ Item {
                                     onCurrentTextChanged: updatePaperSize()
 
                                     enabled: appState.selectedPrinter.length === 0 || isSupported(currentText, printJobOutput.supportedMediaSizes())
-
-                                    // ToolTip.text: "Select a predefined media/paper size or choose Custom to define your own dimensions"
-                                    // ToolTip.visible: hovered
                                 }
 
                                 ColumnLayout {
@@ -432,6 +439,59 @@ Item {
                                     currentIndex: model.indexOf(jobData.varnishType)
                                     onCurrentTextChanged: updateVarnishType()
                                 }
+                                
+                                Label { text: "Ink Dot Strategy" }
+								GroupBox {
+									Layout.fillWidth: true
+									
+									ColumnLayout {
+										spacing: 10
+
+										RowLayout {
+											spacing: 8
+											Label { text: "Min Ink Threshold"; Layout.alignment: Qt.AlignLeft }
+											SpinBox {
+												id: minInkSpin
+												from: 0; to: 255
+												value: jobData.minInkThreshold
+												onValueChanged: updateDotStrategy()
+												Layout.fillWidth: true
+											}
+										}
+
+										RowLayout {
+											spacing: 8
+											Label { text: "Small Dot Threshold"; Layout.alignment: Qt.AlignLeft }
+											SpinBox {
+												id: smallDotSpin
+												from: 0; to: 255
+												value: jobData.smallDotThreshold
+												onValueChanged: updateDotStrategy()
+												Layout.fillWidth: true
+											}
+										}
+
+										RowLayout {
+											spacing: 8
+											Label { text: "Medium Dot Threshold"; Layout.alignment: Qt.AlignLeft }
+											SpinBox {
+												id: medDotSpin
+												from: 0; to: 255
+												value: jobData.medDotThreshold
+												onValueChanged: updateDotStrategy()
+												Layout.fillWidth: true
+											}
+										}
+
+										CheckBox {
+											id: promotionCheck
+											text: "Enable Dot Promotion"
+											checked: jobData.enablePromotion
+											onCheckedChanged: updateDotStrategy()
+										}
+									}
+								}
+
 
                                 Label { text: "Color Profile" }
                                 ComboBox {
@@ -472,8 +532,7 @@ Item {
                                         onClicked: {
                                             var result = false
                                             if (profileBox.currentText === "Custom ICC") {
-                                                colorProfile.loadProfiles(selectedInputICC, selectedOutputICC)
-                                                result = colorProfile.convertWithICCProfiles(imagePath, imagePath)
+                                                result = colorProfile.convertWithICCProfilesCMYK(imagePath, imagePath, selectedInputICC, selectedOutputICC)
                                             } else {
                                                 result = colorProfile.convertToColorspace(imagePath, profileBox.currentText)
                                             }
@@ -512,10 +571,10 @@ Item {
                                     onAccepted: {
                                         if (loadingInputICC) {
                                             selectedInputICC = file
-                                            colorProfile.setInputICC(file)
+                                          //  colorProfile.setInputICC(file) // This only applies when using LittleCMS, we use Image Magick instead
                                         } else {
                                             selectedOutputICC = file
-                                            colorProfile.setOutputICC(file)
+                                          //  colorProfile.setOutputICC(file) // This only applies when using LittleCMS, we use Image Magick instead
                                         }
                                     }
                                 }
@@ -557,10 +616,11 @@ Item {
         Pane {
             Layout.fillWidth: true
             padding: 10
+            Layout.alignment: Qt.AlignHCenter
 
             RowLayout {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 20
+				anchors.horizontalCenter: parent.horizontalCenter
+				spacing: 20
 
                 Button {
                     text: "Save Job"
@@ -576,7 +636,11 @@ Item {
                             offset: Qt.point(offsetXSpin.value, offsetYSpin.value),
                             whiteStrategy: whiteBox.currentText,
                             varnishType: varnishBox.currentText,
-                            colorProfile: profileBox.currentText
+                            colorProfile: profileBox.currentText,
+                            minInkThreshold: minInkSpin.value,
+							smallDotThreshold: smallDotSpin.value,
+							medDotThreshold: medDotSpin.value,
+							enablePromotion: promotionCheck.checked
                         })
                         toast.show("Job Successfully Saved!")
                     }

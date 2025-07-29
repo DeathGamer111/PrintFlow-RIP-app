@@ -34,6 +34,10 @@ QVariant PrintJobModel::data(const QModelIndex &index, int role) const {
     case WhiteStrategyRole: return job.whiteStrategy;
     case VarnishTypeRole: return job.varnishType;
     case ColorProfileRole: return job.colorProfile;
+    case MinInkThresholdRole: return job.minInkThreshold;
+	case SmallDotThresholdRole: return job.smallDotThreshold;
+	case MedDotThresholdRole: return job.medDotThreshold;
+	case EnablePromotionRole: return job.enablePromotion;
     case CreatedAtRole: return job.createdAt;
     default: return QVariant();
     }
@@ -52,6 +56,10 @@ QHash<int, QByteArray> PrintJobModel::roleNames() const {
         {WhiteStrategyRole, "whiteStrategy"},
         {VarnishTypeRole, "varnishType"},
         {ColorProfileRole, "colorProfile"},
+        {MinInkThresholdRole, "minInkThreshold"},
+		{SmallDotThresholdRole, "smallDotThreshold"},
+		{MedDotThresholdRole, "medDotThreshold"},
+		{EnablePromotionRole, "enablePromotion"},
         {CreatedAtRole, "createdAt"}
     };
 }
@@ -65,11 +73,16 @@ void PrintJobModel::addJob(const QString &name) {
     job.name = name;
     job.createdAt = QDateTime::currentDateTime();
     job.paperSize = QSize(210, 297);    // Dfault to A4 Paper Size
-    job.resolution = QSize(720, 720);   // optional default
-    job.offset = QPoint(0, 0);          // optional default
-    job.whiteStrategy = "None";         // optional default
-    job.varnishType = "None";           // optional default
-    job.colorProfile = "sRGB";          // optional default
+    job.resolution = QSize(720, 720);
+    job.offset = QPoint(0, 0);
+    job.whiteStrategy = "None";
+    job.varnishType = "None";
+    job.colorProfile = "sRGB";
+    job.minInkThreshold = 2;
+    job.smallDotThreshold = 192;
+    job.medDotThreshold = 128;
+    job.enablePromotion = true;
+    
     m_jobs.append(job);
     endInsertRows();
     emit countChanged();
@@ -100,6 +113,10 @@ QVariantMap PrintJobModel::getJob(int index) const {
     map["whiteStrategy"] = job.whiteStrategy;
     map["varnishType"] = job.varnishType;
     map["colorProfile"] = job.colorProfile;
+    map["minInkThreshold"] = job.minInkThreshold;
+	map["smallDotThreshold"] = job.smallDotThreshold;
+	map["medDotThreshold"] = job.medDotThreshold;
+	map["enablePromotion"] = job.enablePromotion;
     map["createdAt"] = job.createdAt;
     return map;
 }
@@ -117,6 +134,10 @@ void PrintJobModel::updateJob(int index, const QVariantMap &jobData) {
     job.whiteStrategy = jobData["whiteStrategy"].toString();
     job.varnishType = jobData["varnishType"].toString();
     job.colorProfile = jobData["colorProfile"].toString();
+    job.minInkThreshold = jobData["minInkThreshold"].toInt();
+	job.smallDotThreshold = jobData["smallDotThreshold"].toInt();
+	job.medDotThreshold = jobData["medDotThreshold"].toInt();
+	job.enablePromotion = jobData["enablePromotion"].toBool();
     emit dataChanged(this->index(index), this->index(index));
 }
 
@@ -151,6 +172,10 @@ void PrintJobModel::loadFromJson(const QString &filePath) {
         job.whiteStrategy = obj["whiteStrategy"].toString();
         job.varnishType = obj["varnishType"].toString();
         job.colorProfile = obj["colorProfile"].toString();
+        job.minInkThreshold = obj["minInkThreshold"].toInt();
+		job.smallDotThreshold = obj["smallDotThreshold"].toInt();
+		job.medDotThreshold = obj["medDotThreshold"].toInt();
+		job.enablePromotion = obj["enablePromotion"].toBool();
         job.createdAt = QDateTime::fromString(obj["createdAt"].toString(), Qt::ISODate);
 
         // If image data is embedded, reconstruct the image file
@@ -223,6 +248,10 @@ void PrintJobModel::saveToJson(const QString &filePath, const QList<int> &select
         obj["whiteStrategy"] = job.whiteStrategy;
         obj["varnishType"] = job.varnishType;
         obj["colorProfile"] = job.colorProfile;
+        obj["minInkThreshold"] = job.minInkThreshold;
+		obj["smallDotThreshold"] = job.smallDotThreshold;
+		obj["medDotThreshold"] = job.medDotThreshold;
+		obj["enablePromotion"] = job.enablePromotion;
         obj["createdAt"] = job.createdAt.toString(Qt::ISODate);
 
         // Embed image base64 if available

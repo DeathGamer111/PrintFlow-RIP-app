@@ -21,6 +21,11 @@ struct PrintJob {
     QString whiteStrategy;      // Strategy for white ink printing
     QString varnishType;        // Type of varnish applied
     QString colorProfile;       // ICC color profile or label
+    
+	int minInkThreshold;		// Minimum Ink Threshold Value
+	int smallDotThreshold;		// Threshold for Small Ink Dots
+	int medDotThreshold;		// Threshold for Medium Ink Dots
+	bool enablePromotion;		// Dot Promotion Enabled/Disabled
 
     QDateTime createdAt;        // Timestamp when job was created
 };

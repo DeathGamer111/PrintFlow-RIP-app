@@ -26,11 +26,11 @@ Page {
 	}
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 20
+	    anchors.fill: parent
+		anchors.margins: 20
         spacing: 20
         Layout.alignment: Qt.AlignHCenter
-        width: Math.min(parent.width, 500)
+        width: Math.min(parent.width, 450)
 
         Label {
             text: "Printer Setup"
@@ -48,13 +48,17 @@ Page {
         StackLayout {
             currentIndex: printerTabs.currentIndex
             Layout.fillWidth: true
+    		Layout.fillHeight: true
 
             // === Nocai Printer Tab (Default) ===
             Item {
+				Layout.fillWidth: true
+				Layout.fillHeight: true
+			    
                 ColumnLayout {
                     spacing: 10
-                    Layout.fillWidth: true
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.fill: parent
+                    Layout.alignment: Qt.AlignHCenter
                     
 					Label {
 						text: "Please Select your Nocai Printer"
@@ -104,7 +108,7 @@ Page {
 					ColumnLayout {
 						spacing: 10
 		                Layout.fillWidth: true
-		                anchors.horizontalCenter: parent.horizontalCenter
+		                Layout.alignment: Qt.AlignHCenter
 
 						Label {
 							text: " Select Default Output ICC Profile"
@@ -161,10 +165,10 @@ Page {
                     ColumnLayout {
                         spacing: 10
                         Layout.fillWidth: true
-                        anchors.horizontalCenter: parent.horizontalCenter
+                        Layout.alignment: Qt.AlignHCenter
 
                         Label {
-                            text: "The Nocai printer engine generates PRN files instead of printing directly to the Printer. This is intended for direct USB or offline transfer to a supported Nocai printer or software such as Atools."
+                            text: "The Nocai engine generates PRN files for USB or offline transfer to a supported Nocai printer or Atools software."
                             wrapMode: Text.WordWrap
                             Layout.fillWidth: true
                             Layout.maximumWidth: 400
@@ -176,10 +180,13 @@ Page {
 
             // === Network Printer Tab ===
             Item {
+				Layout.fillWidth: true
+				Layout.fillHeight: true
+        
                 ColumnLayout {
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    Layout.alignment: Qt.AlignHCenter
                     spacing: 10
-                    Layout.fillWidth: true
+                    anchors.fill: parent
 
                     ComboBox {
                         id: printerComboBox
@@ -215,7 +222,6 @@ Page {
 
         // === Printer Info (after setup) ===
         GroupBox {
-            title: "Selected Printer Details"
             visible: appState.selectedPrinter.length > 0
             Layout.fillWidth: true
 
@@ -223,6 +229,13 @@ Page {
                 spacing: 6
                 Layout.fillWidth: true
 
+				Label {
+					text: "Selected Printer Details"
+					font.bold: true
+					font.pixelSize: 16
+					Layout.alignment: Qt.AlignLeft
+				}
+				
                 Label { text: "Name: " + appState.selectedPrinter }
                 Label { text: "Nocai Printer: " + (appState.usingSimulatedPrinter ? "Yes" : "No") }
 

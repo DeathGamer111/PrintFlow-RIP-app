@@ -23,6 +23,10 @@ public:
         WhiteStrategyRole,
         VarnishTypeRole,
         ColorProfileRole,
+		MinInkThresholdRole,
+		SmallDotThresholdRole,
+		MedDotThresholdRole,
+		EnablePromotionRole,
         CreatedAtRole
     };
 

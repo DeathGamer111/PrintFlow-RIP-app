@@ -422,7 +422,7 @@ Page {
     
     function resetSliders() {
 		brightnessSlider.value = brightness
-		contrastSlider.value = contrast
+		contrastSlider.value = 50
 		hueSlider.value = hue
 		saturationSlider.value = saturation
 		sharpenSlider.value = sharpness

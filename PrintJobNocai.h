@@ -8,6 +8,16 @@
 #include <Magick++.h>
 
 
+// Ink Dot Strategy
+struct DotStrategy {
+	int minInkThreshold = 2;         // Below this: no dot
+	int smallDotThreshold = 192;     // ≥ this → small dot (1)
+	int medDotThreshold = 128;       // ≥ this → medium dot (2)
+	                                 // ≥ minInkThreshold and < medDotThreshold → large dot (3)
+	bool enablePromotion = true;
+};
+
+
 class PrintJobNocai : public QObject {
     Q_OBJECT
 
@@ -36,6 +46,10 @@ public:
     Q_INVOKABLE void setDefaultOutputICCProfile(const QString& outputProfile);
     Q_INVOKABLE void addICCProfile(const QString& name, const QString& path);
 
+	// Ink Dot Thresholds
+	Q_INVOKABLE void setDotStrategy(int minInkThreshold, int smallDotThreshold, int medDotThreshold, bool enablePromotion);
+
+
 private:
 
     // Internal images and data
@@ -48,18 +62,19 @@ private:
     Magick::Image buildDitherMask(const Magick::Image& baseMask, int width, int height, int offsetX, int offsetY);
 
     // Paths and temp handling
+    QString assetsExtractPath;
     QString originalFilename;
     QString tempImagePath;
     std::unique_ptr<QTemporaryDir> tempDir;
-
+    
     // Internal helpers
     Magick::Blob loadICCProfile(const QString& filePath);
     QString defaultOutputICCPath;
     QList<QPair<QString, QString>> availableICCProfiles; // name, path
 
     // PRN Generation Helper Functions
-    QString assetsExtractPath;
-    std::vector<std::vector<uint8_t>> dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, int width, int height);
+   	DotStrategy dotStrategy;
+    std::vector<std::vector<uint8_t>> dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, int width, int height, const DotStrategy& strategy);
     void apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap, int width, int height);
     std::vector<std::vector<uint8_t>> packTo2BPP(const std::vector<std::vector<uint8_t>>& dotMap, int width, int height);
     bool writePRNFile(const std::vector<std::vector<std::vector<uint8_t>>>& packedLines, const std::vector<int>& channelOrder, int width, int height, int xdpi, int ydpi, const QString& outputPath);

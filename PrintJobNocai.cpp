@@ -48,89 +48,6 @@ Magick::Blob PrintJobNocai::loadICCProfile(const QString& path) {
 }
 
 
-/* // Little CMS ICC Conversion
-bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QString& outputProfile) {
-    try {
-	QString inPath = inputProfile;
-	QString outPath = outputProfile;
-
-        // Load ICC profiles
-        cmsHPROFILE inputICC = cmsOpenProfileFromFile(inPath.toStdString().c_str(), "r");
-        cmsHPROFILE outputICC = cmsOpenProfileFromFile(outPath.toStdString().c_str(), "r");
-        if (!inputICC || !outputICC) {
-            qWarning() << "Failed to load one or both ICC profiles.";
-            if (inputICC) cmsCloseProfile(inputICC);
-            if (outputICC) cmsCloseProfile(outputICC);
-            return false;
-        }
-
-        // Create Little CMS transform
-        cmsHTRANSFORM transform = cmsCreateTransform(inputICC, TYPE_RGB_8,
-                                                     outputICC, TYPE_CMYK_8,
-                                                     INTENT_PERCEPTUAL, 0);
-        if (!transform) {
-            qWarning() << "Failed to create ICC transform.";
-            cmsCloseProfile(inputICC);
-            cmsCloseProfile(outputICC);
-            return false;
-        }
-
-        // Prepare input and output buffers
-        int width = static_cast<int>(inputImage.columns());
-        int height = static_cast<int>(inputImage.rows());
-        inputImage.depth(8);  // Ensures 8-bit component depth
-        std::vector<uchar> rgbBuffer(width * height * 3);
-        std::vector<uchar> cmykBuffer(width * height * 4);
-
-        inputImage.type(Magick::TrueColorType);
-        inputImage.colorSpace(Magick::RGBColorspace);
-        inputImage.write(0, 0, width, height, "RGB", Magick::CharPixel, rgbBuffer.data());
-
-        // Apply color conversion
-        cmsDoTransform(transform, rgbBuffer.data(), cmykBuffer.data(), width * height);
-
-        cmsDeleteTransform(transform);
-        cmsCloseProfile(inputICC);
-        cmsCloseProfile(outputICC);
-
-	// Create CMYK Magick image from raw buffer (no constructor)
-	cmykImage = Magick::Image(Magick::Geometry(width, height), "white");
-	cmykImage.depth(8);
-
-	// Set correct color space and pixel interpretation *before* reading in data
-	cmykImage.modifyImage();
-	cmykImage.colorSpace(Magick::CMYKColorspace);
-	cmykImage.type(Magick::ColorSeparationType);
-
-	// Now load pixels into image
-	cmykImage.read(width, height, "CMYK", Magick::CharPixel, cmykBuffer.data());
-
-	// Force set again in case it got internally overridden
-	cmykImage.colorSpace(Magick::CMYKColorspace);
-	cmykImage.type(Magick::ColorSeparationType);
-
-	qDebug() << "cmykImage colorspace enum:" << static_cast<int>(cmykImage.colorSpace());
-
-
-        // Embed the output ICC profile into CMYK image
-        std::ifstream profileFile(outPath.toStdString(), std::ios::binary);
-        if (profileFile) {
-            std::vector<char> profileData((std::istreambuf_iterator<char>(profileFile)), {});
-            Magick::Blob profileBlob(profileData.data(), profileData.size());
-            cmykImage.profile("icc", profileBlob);
-        }
-
-        qDebug() << "ICC conversion succeeded using:" << inPath << "→" << outPath;
-        return true;
-
-    } catch (const Magick::Exception& e) {
-        qWarning() << "Exception during ICC conversion:" << e.what();
-        return false;
-    }
-}
-*/
-
-
 bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QString& outputProfile) {
     try {
 	std::ifstream inFile(inputProfile.toStdString(), std::ios::binary);
@@ -218,10 +135,9 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
             
             // Apply FM screen (u >= v ? 1 : 0)
             std::vector<uint8_t> dithered(width * height, 0);
-			const uint8_t INK_THRESHOLD = 2;  // Minimum value for ink to be considered
 
 			for (int i = 0; i < width * height; ++i) {
-				if (channelBytes[i] < INK_THRESHOLD) {
+				if (channelBytes[i] < dotStrategy.minInkThreshold) {
 					dithered[i] = 0;  // Treat as blank — do not screen
 				} else {
 					dithered[i] = (channelBytes[i] >= maskBytes[i]) ? 255 : 0;
@@ -229,10 +145,15 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
 			}
 
             // Classify dots by mask thresholds
-            auto dotMap = dotClassification(dithered, maskBytes, width, height);
+            auto dotMap = dotClassification(dithered, maskBytes, width, height, dotStrategy);
 
             // Promote small/medium dots
-            apply4x4Promotion(dotMap, width, height);
+            if (dotStrategy.enablePromotion) {
+                apply4x4Promotion(dotMap, width, height);
+            }
+			else {
+				qDebug() << "Dot Promotion Disabled — skipping Dot Promotion.";
+			}
 
             // Pack into 2BPP format
             auto packed = packTo2BPP(dotMap, width, height);
@@ -259,6 +180,14 @@ void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& o
         const QString imagePath = jobMap["imagePath"].toString();
         const QSize resolution = jobMap["resolution"].toSize();
         const QString colorProfile = jobMap["colorProfile"].toString();
+        const int minThreshold = jobMap["minInkThreshold"].toInt();
+		const int smallThreshold = jobMap["smallDotThreshold"].toInt();
+		const int medThreshold = jobMap["medDotThreshold"].toInt();
+		const bool promotionEnabled = jobMap["enablePromotion"].toBool();
+        
+        setDotStrategy(minThreshold, smallThreshold, medThreshold, promotionEnabled);
+        
+		qDebug() << "Dot strategy updated:" << "Minimum Ink Threshold:" << dotStrategy.minInkThreshold << "Small Dot Threshold:" << dotStrategy.smallDotThreshold << "Medium Dot Threshold:" << dotStrategy.medDotThreshold << "Dot Promotion Enabled:" << dotStrategy.enablePromotion;
 
         if (loadInputImage(imagePath)) {
             // Only apply ICC conversion if the image is NOT already CMYK
@@ -310,17 +239,30 @@ std::array<Magick::Image, 4> PrintJobNocai::separateCMYK(Magick::Image& cmykImag
 }
 
 
-std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, int width, int height) {
-    std::vector<std::vector<uint8_t>> dotMap(height, std::vector<uint8_t>(width, 0));
+void PrintJobNocai::setDotStrategy(int minInkThreshold, int smallDotThreshold, int medDotThreshold, bool enablePromotion) {
+    dotStrategy.minInkThreshold = minInkThreshold;
+    dotStrategy.smallDotThreshold = smallDotThreshold;
+    dotStrategy.medDotThreshold = medDotThreshold;
+    dotStrategy.enablePromotion = enablePromotion;
+}
 
+
+std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, int width, int height, const DotStrategy& strategy) {
+	std::vector<std::vector<uint8_t>> dotMap(height, std::vector<uint8_t>(width, 0));
+	
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             if (dithered[y * width + x] < 128) continue;
 
             uint8_t t = mask[y * width + x];
-            if (t >= 192) dotMap[y][x] = 1;
-            else if (t >= 128) dotMap[y][x] = 2;
-            else dotMap[y][x] = 3;
+            
+			if (t >= strategy.smallDotThreshold) {
+                dotMap[y][x] = 1; // Small dot
+            } else if (t >= strategy.medDotThreshold) {
+                dotMap[y][x] = 2; // Medium dot
+            } else {
+                dotMap[y][x] = 3; // Large dot
+            }
         }
     }
     return dotMap;
@@ -329,6 +271,7 @@ std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(const std::ve
 
 
 void PrintJobNocai::apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap, int width, int height) {
+    
     for (int y = 1; y < height - 2; ++y) {
         for (int x = 1; x < width - 2; ++x) {
             if (dotMap[y][x] == 3) continue;
@@ -483,7 +426,7 @@ void PrintJobNocai::prepareNocaiAssets() {
 
 
 void PrintJobNocai::cleanupTemporaryFiles(const QString& baseName, const QString& workingDir) {
-    qDebug() << "🧹 Cleaning intermediate files for base:" << baseName << "in dir:" << workingDir;
+    qDebug() << "Cleaning intermediate files for base:" << baseName << "in dir:" << workingDir;
     QStringList suffixes = {
         "_c_1bit.tiff", "_m_1bit.tiff", "_y_1bit.tiff", "_k_1bit.tiff",
         "_c.tiff", "_m.tiff", "_y.tiff", "_k.tiff",
@@ -502,18 +445,18 @@ void PrintJobNocai::cleanupTemporaryFiles(const QString& baseName, const QString
     QDir dir(workingDir);
     if (dir.exists()) {
         dir.removeRecursively();
-        qDebug() << "✅ Working directory removed:" << workingDir;
+        qDebug() << "Working directory removed:" << workingDir;
     }
 }
 
 
 void PrintJobNocai::cleanupRuntimeAssets() {
-    qDebug() << "🧹 Cleaning runtime assets in:" << assetsExtractPath;
+    qDebug() << "Cleaning runtime assets in:" << assetsExtractPath;
     QDir dir(assetsExtractPath);
     if (dir.exists()) {
         dir.removeRecursively();
-        qDebug() << "✅ Runtime assets cleaned.";
+        qDebug() << "Runtime assets cleaned.";
     } else {
-        qDebug() << "⚠️ Runtime assets directory not found.";
+        qDebug() << "Runtime assets directory not found.";
     }
 }

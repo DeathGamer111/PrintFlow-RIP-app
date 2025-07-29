@@ -115,7 +115,7 @@ bool ColorProfile::convertWithICCProfilesCMYK(const QString &imagePath, const QS
         // Apply input ICC profile
         std::ifstream inProfileFile(inputICC.toStdString(), std::ios::binary);
         if (!inProfileFile) {
-            qWarning() << "❌ Failed to open input ICC profile:" << inputICC;
+            qWarning() << "Failed to open input ICC profile:" << inputICC;
             return false;
         }
         std::vector<char> inProfileData((std::istreambuf_iterator<char>(inProfileFile)), {});
@@ -124,7 +124,7 @@ bool ColorProfile::convertWithICCProfilesCMYK(const QString &imagePath, const QS
         // Apply output ICC profile (this triggers conversion)
         std::ifstream outProfileFile(outputICC.toStdString(), std::ios::binary);
         if (!outProfileFile) {
-            qWarning() << "❌ Failed to open output ICC profile:" << outputICC;
+            qWarning() << "Failed to open output ICC profile:" << outputICC;
             return false;
         }
         std::vector<char> outProfileData((std::istreambuf_iterator<char>(outProfileFile)), {});
@@ -138,11 +138,11 @@ bool ColorProfile::convertWithICCProfilesCMYK(const QString &imagePath, const QS
 
         image.write(outLocal.toStdString());
 
-        qDebug() << "✅ ICC CMYK conversion succeeded. Output saved to:" << outLocal;
+        qDebug() << "ICC CMYK conversion succeeded. Output saved to:" << outLocal;
         return true;
 
     } catch (const Magick::Exception& e) {
-        qWarning() << "❌ ICC conversion failed:" << e.what();
+        qWarning() << "ICC conversion failed:" << e.what();
         return false;
     }
 }

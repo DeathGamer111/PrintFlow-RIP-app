@@ -15,7 +15,8 @@ Item {
     property var selectedIndexes: []
     property string suggestedFilename: ""
 
-    anchors.fill: parent
+    width: parent.width
+    height: parent.height
 
     function toggleSelection(index) {
             const exists = selectedIndexes.includes(index)
@@ -81,7 +82,8 @@ Item {
         }
 
     ColumnLayout {
-        anchors.fill: parent
+        width: parent.width
+    	height: parent.height
         spacing: 0
 
         // === Top Header ===
@@ -92,9 +94,9 @@ Item {
             Layout.fillWidth: true
 
             RowLayout {
-                anchors.fill: parent
-                anchors.margins: 10
-                spacing: 15
+				Layout.fillWidth: true
+				Layout.fillHeight: true
+				spacing: 15
 
                 Image {
                     source: "qrc:/assets/logo.png"
@@ -116,6 +118,7 @@ Item {
 
                 Button {
                     text: "Printer Setup"
+                    Layout.leftMargin: 30
                     onClicked: stackView.push("qrc:/qml/PrinterSetupView.qml", {
                         stackView: stackView,
                         appState: appState
@@ -202,7 +205,7 @@ Item {
                 width: Math.min(parent.width, 500)
                 model: jobModel
                 spacing: 6
-                anchors.horizontalCenter: parent.horizontalCenter
+                Layout.alignment: Qt.AlignHCenter
 
                 delegate: ItemDelegate {
                     width: jobListView.width
@@ -222,7 +225,8 @@ Item {
                     }
 
                     contentItem: RowLayout {
-                        anchors.fill: parent
+						Layout.fillWidth: true
+						Layout.preferredHeight: parent.height
                         spacing: 10
 
                         CheckBox {
@@ -240,58 +244,6 @@ Item {
                 }
             }
         }
-
-        Item {
-            id: spinnerOverlay
-            anchors.fill: parent
-            visible: appState.isGeneratingPRN
-            z: 999
-
-            Rectangle {
-                anchors.fill: parent
-                color: "#00000088"
-
-		Item {
-		    width: 64
-		    height: 64
-		    anchors.centerIn: parent
-
-		    RotationAnimator on rotation {
-			from: 0
-			to: 360
-			duration: 1000
-			loops: Animation.Infinite
-			running: true
-		    }
-
-		    Rectangle {
-			anchors.fill: parent
-			radius: width / 2
-			border.width: 6
-			border.color: "#3498db"
-			color: "transparent"
-		    }
-
-		    Rectangle {
-			width: 6
-			height: height / 2
-			anchors.top: parent.top
-			anchors.horizontalCenter: parent.horizontalCenter
-			color: "#3498db"
-		    }
-		}
-
-                Text {
-                    text: "Rastering Image and Generating PRN..."
-                    anchors.top: parent.verticalCenter
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    color: "white"
-                    font.pixelSize: 18
-                    anchors.topMargin: 80
-                }
-            }
-        }
-
 
         // === Bottom Toolbar ===
         Rectangle {
@@ -388,6 +340,59 @@ Item {
         Toast {
             id: toast
             parent: Overlay.overlay
+        }
+    }
+    
+    
+    Item {
+        id: spinnerOverlay
+		anchors.fill: parent
+        visible: appState.isGeneratingPRN
+        z: 999
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#00000088"
+
+			Item {
+				width: 64
+				height: 64
+				anchors.horizontalCenter: parent.horizontalCenter
+				anchors.verticalCenter: parent.verticalCenter
+
+				RotationAnimator on rotation {
+					from: 0
+					to: 360
+					duration: 1000
+					loops: Animation.Infinite
+					running: true
+				}
+
+				Rectangle {
+					anchors.fill: parent
+					radius: width / 2
+					border.width: 6
+					border.color: "#3498db"
+					color: "transparent"
+				}
+
+				Rectangle {
+					width: 6
+					height: height / 2
+					anchors.top: parent.top
+					anchors.horizontalCenter: parent.horizontalCenter
+					color: "#3498db"
+				}
+			}
+
+            Text {
+                text: "Rastering Image and Generating PRN..."
+                anchors.top: parent.verticalCenter
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: "white"
+                font.pixelSize: 18
+                anchors.topMargin: 80
+            }
         }
     }
 }
