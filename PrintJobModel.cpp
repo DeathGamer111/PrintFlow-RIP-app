@@ -6,11 +6,13 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QDateTime> 
 
 
-/***********************************************************
-    PrintJobModel constructor, passes in the parent pointer
-************************************************************/
+/*********************************************************************************************
+    PrintJobModel constructor, 
+    QAbstractListModel storing print jobs; JSON import/export with optional embedded image data.
+**********************************************************************************************/
 PrintJobModel::PrintJobModel(QObject *parent) : QAbstractListModel(parent) {}
 
 
@@ -38,6 +40,11 @@ QVariant PrintJobModel::data(const QModelIndex &index, int role) const {
 	case SmallDotThresholdRole: return job.smallDotThreshold;
 	case MedDotThresholdRole: return job.medDotThreshold;
 	case EnablePromotionRole: return job.enablePromotion;
+	case FloorRangeCMYRole: return job.floorRangeCMY;
+	case FloorMaxCMYRole:   return job.floorMaxCMY;
+	case FloorRangeKRole:   return job.floorRangeK;
+	case FloorMaxKRole:     return job.floorMaxK;
+	case EnableDotSwapRole: return job.enableDotSwap;
     case CreatedAtRole: return job.createdAt;
     default: return QVariant();
     }
@@ -60,6 +67,11 @@ QHash<int, QByteArray> PrintJobModel::roleNames() const {
 		{SmallDotThresholdRole, "smallDotThreshold"},
 		{MedDotThresholdRole, "medDotThreshold"},
 		{EnablePromotionRole, "enablePromotion"},
+		{FloorRangeCMYRole, "floorRangeCMY" },
+		{FloorMaxCMYRole, "floorMaxCMY" },
+		{FloorRangeKRole, "floorRangeK" },
+		{FloorMaxKRole, "floorMaxK" },
+		{EnableDotSwapRole, "enableDotSwap" },
         {CreatedAtRole, "createdAt"}
     };
 }
@@ -72,17 +84,21 @@ void PrintJobModel::addJob(const QString &name) {
     job.id = QString::number(QDateTime::currentMSecsSinceEpoch());
     job.name = name;
     job.createdAt = QDateTime::currentDateTime();
-    job.paperSize = QSize(210, 297);    // Dfault to A4 Paper Size
-    job.resolution = QSize(720, 720);
+    job.paperSize = QSize(210, 297);    // Default A4 Paper Size
+    job.resolution = QSize(720, 720);	// RIP default DPI.
     job.offset = QPoint(0, 0);
     job.whiteStrategy = "None";
     job.varnishType = "None";
     job.colorProfile = "sRGB";
-    job.minInkThreshold = 2;
-    job.smallDotThreshold = 192;
-    job.medDotThreshold = 128;
-    job.enablePromotion = true;
-    
+    job.minInkThreshold = 8;
+    job.smallDotThreshold = 92;
+    job.medDotThreshold = 164;
+    job.enablePromotion = false;
+    job.floorRangeCMY = 24;
+    job.floorMaxCMY = 2;
+    job.floorRangeK = 12;
+    job.floorMaxK = 0;
+    job.enableDotSwap = false;
     m_jobs.append(job);
     endInsertRows();
     emit countChanged();
@@ -117,7 +133,13 @@ QVariantMap PrintJobModel::getJob(int index) const {
 	map["smallDotThreshold"] = job.smallDotThreshold;
 	map["medDotThreshold"] = job.medDotThreshold;
 	map["enablePromotion"] = job.enablePromotion;
+	map["floorRangeCMY"] = job.floorRangeCMY;
+	map["floorMaxCMY"] = job.floorMaxCMY;
+	map["floorRangeK"] = job.floorRangeK;
+	map["floorMaxK"] = job.floorMaxK;
+	map["enableDotSwap"] = job.enableDotSwap;
     map["createdAt"] = job.createdAt;
+    
     return map;
 }
 
@@ -138,6 +160,12 @@ void PrintJobModel::updateJob(int index, const QVariantMap &jobData) {
 	job.smallDotThreshold = jobData["smallDotThreshold"].toInt();
 	job.medDotThreshold = jobData["medDotThreshold"].toInt();
 	job.enablePromotion = jobData["enablePromotion"].toBool();
+	job.floorRangeCMY = static_cast<uint8_t>(jobData.value("floorRangeCMY", job.floorRangeCMY).toInt());
+	job.floorMaxCMY = static_cast<uint8_t>(jobData.value("floorMaxCMY", job.floorMaxCMY).toInt());
+	job.floorRangeK = static_cast<uint8_t>(jobData.value("floorRangeK", job.floorRangeK).toInt());
+	job.floorMaxK = static_cast<uint8_t>(jobData.value("floorMaxK", job.floorMaxK).toInt());
+	job.enableDotSwap = jobData.value("enableDotSwap", job.enableDotSwap).toBool();
+
     emit dataChanged(this->index(index), this->index(index));
 }
 
@@ -176,6 +204,11 @@ void PrintJobModel::loadFromJson(const QString &filePath) {
 		job.smallDotThreshold = obj["smallDotThreshold"].toInt();
 		job.medDotThreshold = obj["medDotThreshold"].toInt();
 		job.enablePromotion = obj["enablePromotion"].toBool();
+		job.floorRangeCMY = static_cast<uint8_t>(obj.value("floorRangeCMY").toInt(24));
+		job.floorMaxCMY = static_cast<uint8_t>(obj.value("floorMaxCMY").toInt(2));
+		job.floorRangeK = static_cast<uint8_t>(obj.value("floorRangeK").toInt(12));
+		job.floorMaxK = static_cast<uint8_t>(obj.value("floorMaxK").toInt(0));
+		job.enableDotSwap = obj.value("enableDotSwap").toBool(false);
         job.createdAt = QDateTime::fromString(obj["createdAt"].toString(), Qt::ISODate);
 
         // If image data is embedded, reconstruct the image file
@@ -252,6 +285,11 @@ void PrintJobModel::saveToJson(const QString &filePath, const QList<int> &select
 		obj["smallDotThreshold"] = job.smallDotThreshold;
 		obj["medDotThreshold"] = job.medDotThreshold;
 		obj["enablePromotion"] = job.enablePromotion;
+		obj["floorRangeCMY"] = static_cast<int>(job.floorRangeCMY);
+		obj["floorMaxCMY"] = static_cast<int>(job.floorMaxCMY);
+		obj["floorRangeK"] = static_cast<int>(job.floorRangeK);
+		obj["floorMaxK"] = static_cast<int>(job.floorMaxK);
+		obj["enableDotSwap"] = job.enableDotSwap;
         obj["createdAt"] = job.createdAt.toString(Qt::ISODate);
 
         // Embed image base64 if available

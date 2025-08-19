@@ -26,6 +26,12 @@ struct PrintJob {
 	int smallDotThreshold;		// Threshold for Small Ink Dots
 	int medDotThreshold;		// Threshold for Medium Ink Dots
 	bool enablePromotion;		// Dot Promotion Enabled/Disabled
+	
+	uint8_t floorRangeCMY;		// FM Screening Range for CMY
+    uint8_t floorMaxCMY;		// FM Screening Max for CMY
+    uint8_t floorRangeK;		// FM Screening Range for K
+    uint8_t floorMaxK;			// FM Screening Max for K
+    bool enableDotSwap;			// Swap Large and Small Ink Dots
 
     QDateTime createdAt;        // Timestamp when job was created
 };

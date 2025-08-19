@@ -2,25 +2,38 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+
+/* ImpositionView.qml
+ * Canvas-style editor to position a job image on a physical page (paperSize in mm)
+ * and optionally burn simple overlays (text/rectangle) into a new imposed image.
+ * Coordinates persist as mm offsets; zoom only affects on-screen scale.
+ */
 Page {
     id: impositionView
     title: "Imposition Editor"
 
+	// Model hooks
 	required property int jobIndex
 	required property var jobModel
 	
+	
+	// Function to pull in current job model
 	function jobData() {
 		return jobModel.getJob(jobIndex)
 	}
-
+	
+	
+	// Source + media state (paper size in mm)
 	property string imagePath: jobData().imagePath
 	property size paperSize: jobData().paperSize
-
+	
+	
+	// Overlay state
     property bool hasDrawnElements: false
 
-    // Zoom factor controlled by UI: 1.0 = 100%
-    property real zoomFactor: 1.0
 
+	// Zoom (1.0 = 100%) auto-fit based on paper size and viewport box
+    property real zoomFactor: 1.0
 	onWidthChanged: updateZoom()
 	onHeightChanged: updateZoom()
 
@@ -32,7 +45,9 @@ Page {
 			)
 		}
 	}
-
+	
+	
+	// Build an updated job payload; optionally swap imagePath when overlays are baked in
     function cloneJobWithOffset(newOffset, newPath = null) {
 		return {
 		    name: jobData().name,
@@ -45,7 +60,9 @@ Page {
 		    colorProfile: jobData().colorProfile
 		}
 	}
-	
+
+
+	// Overlay command dispatcher for live preview (draws when saving via C++ backend)
 	function apply(type, value) {
 		const actions = {
 		    "text":     () => imageEditor.drawText(value.text, value.x, value.y),
@@ -61,13 +78,13 @@ Page {
 	}
 
 
-
+	// Main Layout
     ColumnLayout {
         anchors.fill: parent
         spacing: 8
 		anchors.margins: 5
         
-        // === Zoom Controls === 
+        // Zoom toolbar
         RowLayout {
 			Layout.alignment: Qt.AlignCenter
             spacing: 12
@@ -91,6 +108,7 @@ Page {
             }
         }
 
+		// Virtual Paper Size View; inner content is measured in mm, scaled by zoomFactor
         Rectangle {
             id: impositionBox
 			Layout.fillWidth: true
@@ -102,6 +120,7 @@ Page {
             border.width: 1
             clip: true
 
+			// Paper plane (mm) centered in the viewport
 			Item {
 				id: paperArea
 				width: paperSize.width
@@ -117,7 +136,7 @@ Page {
 					border.width: 1
 				}
 
-				// === Direct Draggable Image ===
+				// Draggable job image proxy; offset stored in mm (x,y)
                 Item {
                     id: imageWrapper
 					property real itemX: (jobModel.getJob(jobIndex).offset?.x !== undefined) ? jobModel.getJob(jobIndex).offset.x : 0
@@ -129,6 +148,7 @@ Page {
                     width: imageItem.width
                     height: imageItem.height
 
+					// Image is sized from pixels → mm using assumed 720 DPI (25.4 mm/in)
                     Image {
                         id: imageItem
                         source: jobData().imagePath
@@ -165,7 +185,7 @@ Page {
                     }
                 }
                 
-                // === Draggable Text Overlay Preview ===
+				// Draggable text overlay preview (baked at Save)
 				Item {
 					id: textOverlayWrapper
 					property real itemX: 100
@@ -198,7 +218,7 @@ Page {
 					}
 				}
 
-				// === Draggable Rectangle Overlay Preview ===
+				// Draggable rectangle overlay preview (baked at Save)
 				Item {
 					id: rectOverlayWrapper
 					property real itemX: 50
@@ -233,7 +253,7 @@ Page {
 			}
 		}
 
-		// === Drawing Tools ===
+		// Overlay drawing controls
 		GroupBox {
 			title: "Overlay Tools"
 			Layout.fillWidth: true
@@ -300,7 +320,8 @@ Page {
 			}
 		}
 
-        // === Footer buttons ===
+		
+		// Footer actions: Back or Save (Save persists offset; optionally bakes overlays)
         RowLayout {
             Layout.alignment: Qt.AlignCenter
             spacing: 20

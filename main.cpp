@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QImageReader>
 #include <QPalette>
 #include <QStyleFactory>
 
@@ -12,19 +13,20 @@
 #include "ColorProfile.h"
 
 
-/****************************************************************************
-    Entry point for the RIP application.
-        - Initializes the QML engine, registers C++ backend objects for QML,
-        and starts the event loop.
-****************************************************************************/
+/* Entry point for the RIP application.
+ * - Sets a consistent Fusion style with a dark palette.
+ * - Creates backend singletons and exposes them to QML.
+ * - Sets an image allocation cap to avoid runaway memory use.
+ * - Loads the main QML and starts the event loop.
+ */
 int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
     
-     // Force Fusion style
-    QApplication::setStyle(QStyleFactory::create("Fusion"));
+    // Force Fusion style
+    QApplication::setStyle(QStyleFactory::create("Fusion"));	// Consistent cross‑platform look.
 
-    // Optional: Set dark palette
+    // Dark palette (applies to widgets and influences Qt Quick Controls).
     QPalette darkPalette;
     darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
     darkPalette.setColor(QPalette::WindowText, Qt::white);
@@ -44,7 +46,7 @@ int main(int argc, char *argv[]) {
     
     QQmlApplicationEngine engine;
     
-    // Instantiate core backend components
+    // Backend components (owned by main; lifetime = entire app).
     PrintJobModel jobModel;
     ImageLoader imageLoader;
     ImageEditor imageEditor;
@@ -52,15 +54,19 @@ int main(int argc, char *argv[]) {
     PrintJobNocai printJobNocaiOutput;
     ColorProfile colorProfile;
 
-    // Expose C++ objects to QML context
+    // Expose C++ objects to QML (context properties for convenient access).
     engine.rootContext()->setContextProperty("jobModel", &jobModel);
     engine.rootContext()->setContextProperty("imageLoader", &imageLoader);
     engine.rootContext()->setContextProperty("imageEditor", &imageEditor);
     engine.rootContext()->setContextProperty("printJobOutput", &printJobOutput);
     engine.rootContext()->setContextProperty("printJobNocai", &printJobNocaiOutput);
     engine.rootContext()->setContextProperty("colorProfile", &colorProfile);
+    
+    // Cap decode allocations to reduce OOM risk with very large images (MB).
+    // Set to 0 to disable the guard (not recommended).
+    QImageReader::setAllocationLimit(1024);
 
-    // Load the main QML UI
+    // Load QML UI and verify a root object was created.
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
     if (engine.rootObjects().isEmpty())
         return -1;

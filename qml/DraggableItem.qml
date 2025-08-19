@@ -1,26 +1,43 @@
 import QtQuick
 
+
+/* DraggableItem.qml
+ * 	Reusable draggable wrapper that positions its content in logical (mm) space,
+ * 	scaled by a provided zoomFactor. Updates itemX/itemY after drag to persist
+ * 	logical coordinates. 
+ */
 Item {
+
     id: root
 
+	// Content to render inside the draggable wrapper
     property Component sourceComponent
+    
+    // Logical coordinates in millimeters; UI position is x/y = itemX/Y * zoomFactor
     property real itemX: 0      // In mm
     property real itemY: 0      // In mm
+    
+    // Scale factor for screen rendering (1.0 = 100% size)
     property real zoomFactor: 1.0
+    
+    // Convenience alias to the instantiated child item
     property alias contentItem: contentLoader.item
 
-    // Internal width/height track original content size (unscaled)
+	// Track the contents intrinsic size (prior to scaling)
     width: loaderWrapper.implicitWidth
     height: loaderWrapper.implicitHeight
 
-    // Position based on logical coordinates
+	// Derive screen-space position from logical mm coordinates
     x: itemX * zoomFactor
     y: itemY * zoomFactor
 
+
+	// Loader host for the provided component
     Item {
         id: loaderWrapper
         anchors.fill: parent
-
+		
+		// The actual content; when loaded, capture intrinsic size if available
         Loader {
             id: contentLoader
             anchors.fill: parent
@@ -36,7 +53,8 @@ Item {
                     loaderWrapper.implicitHeight = item.implicitHeight
             }
         }
-
+		
+		// Mouse-based dragging; updates logical coordinates after release
         MouseArea {
             id: dragArea
             anchors.fill: parent
@@ -51,6 +69,7 @@ Item {
             }
         }
 
+		// Touch dragging (single-finger pan); keeps itemX/itemY in sync while moving
         MultiPointTouchArea {
             anchors.fill: parent
             touchPoints: [ TouchPoint { id: touch } ]

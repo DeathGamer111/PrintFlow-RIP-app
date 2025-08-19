@@ -27,8 +27,13 @@ public:
 		SmallDotThresholdRole,
 		MedDotThresholdRole,
 		EnablePromotionRole,
-        CreatedAtRole
-    };
+		FloorRangeCMYRole,
+		FloorMaxCMYRole,
+		FloorRangeKRole,
+		FloorMaxKRole,
+		EnableDotSwapRole,
+		CreatedAtRole
+	};
 
     PrintJobModel(QObject *parent = nullptr);
 

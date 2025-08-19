@@ -5,16 +5,19 @@ import Qt.labs.platform
 import QtCore
 
 
+// Job details & settings editor for a single print job.
+// Loads/validates artwork, shows live preview, and lets the user tweak
+// printer, resolution, offsets, color management, and dot strategy.
 Item {
     required property StackView stackView
     required property int jobIndex
     required property var jobModel
     property var jobData: jobModel.getJob(jobIndex)
-    property string imagePath: jobData.imagePath
-    property string tempPreviewPath: ""
-    property var imageMeta: ({})
+    property string imagePath: jobData.imagePath           // What the preview <Image> points at (may be a temp PNG for PDFs)
+    property string tempPreviewPath: ""                    // Temp file created for PDF preview; cleaned on Back
+    property var imageMeta: ({})                           // Metadata from ImageLoader
     property var appState
-    property string selectedInputICC: ""
+    property string selectedInputICC: ""                   // When using "Custom ICC" conversion
     property string selectedOutputICC: ""
     property string printedSizeDisplay: "Printed size unavailable"
     property var dpiOptions: ["720x720", "720x1440", "720x2160"]
@@ -23,6 +26,8 @@ Item {
 	width: parent ? parent.width : 450
 	height: parent ? parent.height : 600
 
+
+	// On first show: derive preview path (PDF -> temp PNG), pull metadata, sync DPI widgets, and gate controls against printer caps.
     Component.onCompleted: {
         if (jobData.imagePath !== "") {
             updateMetadata(jobData.imagePath)
@@ -56,6 +61,8 @@ Item {
 		}
     }
 
+
+	// When navigating back to this screen, refresh preview and derived labels.
     onVisibleChanged: {
         if (visible) {
 			jobData = jobModel.getJob(jobIndex)
@@ -64,18 +71,24 @@ Item {
         }
     }
 
+	
+	// Force the <Image> to reload its source; handy after conversions.
     function refreshPreview() {
         const temp = previewImage.source
         previewImage.source = ""
         previewImage.source = temp
     }
 
+	
+	// Capability guard: if no capability list is provided, assume supported.
     function isSupported(value, supportedList) {
         if (!supportedList || supportedList.length === 0)
             return true
         return supportedList.indexOf(value) !== -1
     }
 
+	
+	// Pick the first dropdown value that the current printer supports.
     function safeSelectFirstSupported(comboBox, supportedList) {
         if (!supportedList || supportedList.length === 0)
             return
@@ -87,10 +100,14 @@ Item {
         }
     }
 
+	
+	// Update job's persisted image path.
     function updateImagePath(path) {
         jobData.imagePath = path
     }
 
+
+    // Map jobData.paperSize to the Paper Size combo index.
     function paperSizeIndexFromSize(size) {
         if (size.width === 210 && size.height === 297) return 0; // A4
         if (size.width === 216 && size.height === 279) return 1; // Letter
@@ -98,6 +115,8 @@ Item {
         return 3; // Custom
     }
 
+	
+	// Apply paper size selection back into jobData (handles Custom).
     function updatePaperSize() {
         if (paperSizeBox.currentText === "A4") {
             jobData.paperSize = Qt.size(210, 297)
@@ -113,6 +132,8 @@ Item {
         }
     }
 
+	
+	// Parse "WxH" combo text and write to jobData.resolution.
 	function updateResolution() {
 		let dpiText = resolutionComboBox.currentText
 		let parts = dpiText.split("x")
@@ -121,6 +142,8 @@ Item {
 		}
 	}
 	
+
+	// Compute approximate printed size from pixel size at a baseline 720 DPI.
 	function updatePrintedSize() {
 		const dpi = 720
 		const w = imageMeta.width || 0
@@ -135,33 +158,42 @@ Item {
 		}
 	}
 
+	
+	// Persist offset spinboxes to jobData.
     function updateOffset() {
         jobData.offset = Qt.point(offsetXSpin.value, offsetYSpin.value)
     }
 
-    function updateWhiteStrategy() {
-        jobData.whiteStrategy = whiteBox.currentText
-    }
 
-    function updateVarnishType() {
-        jobData.varnishType = varnishBox.currentText
-    }
-
-    function updateColorProfile() {
-        jobData.colorProfile = profileBox.currentText
-    }
+	// Persist white/varnish/profile selections.
+    function updateWhiteStrategy() { jobData.whiteStrategy = whiteBox.currentText }
+    function updateVarnishType() { jobData.varnishType = varnishBox.currentText }
+    function updateColorProfile() { jobData.colorProfile = profileBox.currentText }
     
+    
+	// Persist dot thresholds and promotion toggle.
     function updateDotStrategy() {
 		jobData.minInkThreshold = minInkSpin.value
 		jobData.smallDotThreshold = smallDotSpin.value
 		jobData.medDotThreshold = medDotSpin.value
-		jobData.enablePromotion = promotionCheck.checked
+		jobData.enablePromotion = 
+		
+		// Floor gating + dot swap fields
+		jobData.floorRangeCMY = floorRangeCMYSpin.value
+		jobData.floorMaxCMY   = floorMaxCMYSpin.value
+		jobData.floorRangeK   = floorRangeKSpin.value
+		jobData.floorMaxK     = floorMaxKSpin.value
+		jobData.enableDotSwap = dotSwapCheck.checked
 	}
 
+	
+	// Fetch fresh metadata (dimensions, channels, color space guess, etc.).
     function updateMetadata(path) {
         imageMeta = imageLoader.extractMetadata(path)
     }
 
+	
+	// Main scroller for the form content; reduces flick velocity for desktop feel.
     ColumnLayout {
         width: parent.width
     	height: parent.height
@@ -179,12 +211,14 @@ Item {
 				target: scrollView
 				function onContentItemChanged() {
 					if (scrollView.flickableItem) {
-						scrollView.flickableItem.flickDeceleration = 500		// default is 3000
-						scrollView.flickableItem.maximumFlickVelocity = 8000 	// default is 2500
+						scrollView.flickableItem.flickDeceleration = 500
+						scrollView.flickableItem.maximumFlickVelocity = 8000
 					}
 				}
 			}
 
+
+			// Card-like container for all job controls.
             Column {
             	width: implicitWidth
 				Layout.alignment: Qt.AlignHCenter
@@ -202,14 +236,16 @@ Item {
 						spacing: 16
 						Layout.fillWidth: true
                         Layout.alignment: Qt.AlignHCenter
-
+						
+						// Simple text field for the job name.
                         TextField {
                             id: jobNameField
                             text: jobData.name
                             placeholderText: "Enter Job Name"
                             Layout.fillWidth: true
                         }
-
+						
+						// Artwork preview area; shows temp PNG for PDFs.
                         Rectangle {
                             id: imageContainer
                             width: 300
@@ -242,6 +278,7 @@ Item {
                             }
                         }
 
+						// Artwork actions: load, open editor, open imposition tool.
                         RowLayout {
                             spacing: 12
                             Layout.alignment: Qt.AlignHCenter
@@ -271,6 +308,7 @@ Item {
                             }
                         }
 
+						// File picker for artwork; validates and builds a PDF preview if needed.
                         FileDialog {
                             id: imageDialog
                             title: "Select Image for Job"
@@ -308,7 +346,8 @@ Item {
 								}
 							}
 						}
-
+						
+						// Printer-related settings: media, DPI, offsets, white/varnish.
                         Label {
                             text: "Printer Settings"
                             font.pixelSize: 18
@@ -334,7 +373,8 @@ Item {
 
                                     enabled: appState.selectedPrinter.length === 0 || isSupported(currentText, printJobOutput.supportedMediaSizes())
                                 }
-
+								
+								// Custom size widgets appear only when needed.
                                 ColumnLayout {
                                     visible: paperSizeBox.currentText === "Custom"
                                     spacing: 8
@@ -386,6 +426,7 @@ Item {
 									}
                                 }
 								
+								// Calculated printed size hint for the user.
 								Label {
 									id: printedSizeLabel
 									text: printedSizeDisplay
@@ -440,6 +481,7 @@ Item {
                                     onCurrentTextChanged: updateVarnishType()
                                 }
                                 
+                                // Dot sizing thresholds and optional neighborhood promotion.
                                 Label { text: "Ink Dot Strategy" }
 								GroupBox {
 									Layout.fillWidth: true
@@ -456,6 +498,7 @@ Item {
 												value: jobData.minInkThreshold
 												onValueChanged: updateDotStrategy()
 												Layout.fillWidth: true
+	                                            editable: true
 											}
 										}
 
@@ -468,6 +511,7 @@ Item {
 												value: jobData.smallDotThreshold
 												onValueChanged: updateDotStrategy()
 												Layout.fillWidth: true
+												editable: true
 											}
 										}
 
@@ -480,6 +524,7 @@ Item {
 												value: jobData.medDotThreshold
 												onValueChanged: updateDotStrategy()
 												Layout.fillWidth: true
+												editable: true
 											}
 										}
 
@@ -489,10 +534,72 @@ Item {
 											checked: jobData.enablePromotion
 											onCheckedChanged: updateDotStrategy()
 										}
+										
+										// CMY floor settings
+										RowLayout {
+											spacing: 8
+											Label { text: "CMY Highlight Floor Range"; Layout.alignment: Qt.AlignLeft }
+											SpinBox {
+												id: floorRangeCMYSpin
+												from: 0; to: 64
+												value: jobData.floorRangeCMY !== undefined ? jobData.floorRangeCMY : 24
+												onValueChanged: updateDotStrategy()
+												Layout.fillWidth: true
+												editable: true
+											}
+										}
+										
+										RowLayout {
+											spacing: 8
+											Label { text: "CMY Highlight Floor Max"; Layout.alignment: Qt.AlignLeft }
+											SpinBox {
+												id: floorMaxCMYSpin
+												from: 0; to: 8
+												value: jobData.floorMaxCMY !== undefined ? jobData.floorMaxCMY : 2
+												onValueChanged: updateDotStrategy()
+												Layout.fillWidth: true
+												editable: true
+											}
+										}
+
+										// K floor settings
+										RowLayout {
+											spacing: 8
+											Label { text: "K Highlight Floor Range"; Layout.alignment: Qt.AlignLeft }
+											SpinBox {
+												id: floorRangeKSpin
+												from: 0; to: 64
+												value: jobData.floorRangeK !== undefined ? jobData.floorRangeK : 12
+												onValueChanged: updateDotStrategy()
+												Layout.fillWidth: true
+												editable: true
+											}
+										}
+										
+										RowLayout {
+											spacing: 8
+											Label { text: "K Highlight Floor Max"; Layout.alignment: Qt.AlignLeft }
+											SpinBox {
+												id: floorMaxKSpin
+												from: 0; to: 8
+												value: jobData.floorMaxK !== undefined ? jobData.floorMaxK : 0
+												onValueChanged: updateDotStrategy()
+												Layout.fillWidth: true
+												editable: true
+											}
+										}
+
+										// Swap option
+										CheckBox {
+											id: dotSwapCheck
+											text: "Swap Small ↔ Large in Highlights (soft blend)"
+											checked: jobData.enableDotSwap !== undefined ? jobData.enableDotSwap : false
+											onCheckedChanged: updateDotStrategy()
+										}
 									}
 								}
 
-
+								// Color space selection and optional ICC-driven conversion.
                                 Label { text: "Color Profile" }
                                 ComboBox {
                                     id: profileBox
@@ -502,6 +609,7 @@ Item {
                                     enabled: appState.selectedPrinter.length === 0 || isSupported(currentText, printJobOutput.supportedColorModes())
                                 }
 
+				                // Action row for profile-driven conversions.
                                 RowLayout {
                                     spacing: 8
                                     Layout.fillWidth: true
@@ -547,7 +655,8 @@ Item {
                                         }
                                     }
                                 }
-
+								
+								// Show selected ICCs to show user what ICC will be applied.
                                 Text {
                                     text: "Input: " + selectedInputICC
                                     visible: profileBox.currentText === "Custom ICC" && selectedInputICC !== ""
@@ -564,6 +673,7 @@ Item {
                                     font.pixelSize: 12
                                 }
 
+								// Shared ICC picker; writes to input or output depending on the toggle.
                                 FileDialog {
                                     id: iccDialog
                                     title: "Select ICC Profile"
@@ -581,6 +691,7 @@ Item {
                             }
                         }
 
+						// Raw metadata dump (only shows keys that exist).
                         GroupBox {
                             title: "Image Metadata"
                             Layout.fillWidth: true
@@ -613,6 +724,7 @@ Item {
             }
         }
 
+		// Footer actions: save changes and navigate back (with temp cleanup).
         Pane {
             Layout.fillWidth: true
             padding: 10
@@ -637,10 +749,19 @@ Item {
                             whiteStrategy: whiteBox.currentText,
                             varnishType: varnishBox.currentText,
                             colorProfile: profileBox.currentText,
-                            minInkThreshold: minInkSpin.value,
+							
+							// Dot strategy
+							minInkThreshold: minInkSpin.value,
 							smallDotThreshold: smallDotSpin.value,
 							medDotThreshold: medDotSpin.value,
-							enablePromotion: promotionCheck.checked
+							enablePromotion: promotionCheck.checked,
+
+							// Floor Gating + Dot Swap
+							floorRangeCMY: floorRangeCMYSpin.value,
+							floorMaxCMY:   floorMaxCMYSpin.value,
+							floorRangeK:   floorRangeKSpin.value,
+							floorMaxK:     floorMaxKSpin.value,
+							enableDotSwap: dotSwapCheck.checked
                         })
                         toast.show("Job Successfully Saved!")
                     }

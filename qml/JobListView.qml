@@ -5,12 +5,14 @@ import Qt.labs.platform
 import QtCore
 
 
+// Job list view: selection workflow, persistence (load/save), and PRN generation entry.
 Item {
     id: root
     required property StackView stackView
     required property var jobModel
     required property var appState
 
+    // Selection state used by toolbar actions and list highlighting.
     property bool selectionMode: false
     property var selectedIndexes: []
     property string suggestedFilename: ""
@@ -18,6 +20,7 @@ Item {
     width: parent.width
     height: parent.height
 
+	// Toggle a single index in/out of the selection.
     function toggleSelection(index) {
             const exists = selectedIndexes.includes(index)
             const updated = selectedIndexes.slice()
@@ -30,63 +33,75 @@ Item {
             }
 
             selectedIndexes = updated
-        }
+	}
 
-        function isSelected(index) {
-            return selectedIndexes.includes(index)
-        }
+		
+	// Readable check for whether an index is selected.
+    function isSelected(index) {
+        return selectedIndexes.includes(index)
+    }
 
-        function areAllJobsSelected() {
-            if (selectedIndexes.length !== jobModel.count)
+
+	// True only if every job is selected (keeps toolbar label in sync).
+    function areAllJobsSelected() {
+        if (selectedIndexes.length !== jobModel.count)
+            return false
+
+        for (let i = 0; i < jobModel.count; ++i) {
+            if (selectedIndexes.indexOf(i) === -1)
                 return false
+        }
+        return true
+    }
 
-            for (let i = 0; i < jobModel.count; ++i) {
-                if (selectedIndexes.indexOf(i) === -1)
-                    return false
-            }
-            return true
+
+	// Select all jobs currently in the model.
+    function selectAll() {
+        const total = jobModel.count
+        if (total === 0)
+            return
+
+        const all = []
+        for (let i = 0; i < total; ++i) {
+            all.push(i)
         }
 
-        function selectAll() {
-            const total = jobModel.count
-            if (total === 0)
-                return
+        selectedIndexes = all
+    }
 
-            const all = []
-            for (let i = 0; i < total; ++i) {
-                all.push(i)
-            }
 
-            selectedIndexes = all
+    // Clear multi-selection.
+    function deselectAll() {
+        selectedIndexes = []
+    }
+
+
+	// Direct print path (bypasses file save): generates and sends to the configured printer.
+    function printSelectedJobDirectly() {
+        const index = selectedIndexes[0]
+        const job = jobModel.getJob(index)
+        const inputFile = job.imagePath
+
+        const outputPath = "" // Empty because printing directly to printer
+
+        const success = printJobOutput.generatePRN(job, inputFile, outputPath)
+        if (success) {
+            console.log("Print job sent to printer:", appState.selectedPrinter)
+            toast.show("Print job sent successfully.")
+        } else {
+            console.warn("Failed to print job:", job.name)
+            toast.show("Failed to print job.")
         }
+    }
 
-        function deselectAll() {
-            selectedIndexes = []
-        }
 
-        function printSelectedJobDirectly() {
-            const index = selectedIndexes[0]
-            const job = jobModel.getJob(index)
-            const inputFile = job.imagePath
-
-            const outputPath = "" // Empty because printing directly to printer
-
-            const success = printJobOutput.generatePRN(job, inputFile, outputPath)
-            if (success) {
-                console.log("Print job sent to printer:", appState.selectedPrinter)
-                toast.show("Print job sent successfully.")
-            } else {
-                console.warn("Failed to print job:", job.name)
-                toast.show("Failed to print job.")
-            }
-        }
-
+	// Main vertical layout for header, toolbars, list, and dialogs.
     ColumnLayout {
         width: parent.width
     	height: parent.height
         spacing: 0
 
-        // === Top Header ===
+        // Top branding/header with nav to printer setup.
         Rectangle {
             height: 60
             width: parent.width
@@ -127,7 +142,8 @@ Item {
             }
         }
 
-        // === Top Toolbar ===
+
+        // Toolbar controlling selection lifecycle and save/remove actions.
         Frame {
             Layout.fillWidth: true
             padding: 10
@@ -163,6 +179,7 @@ Item {
                     }
                 }
 
+				// Save selected jobs to JSON (with embedded base64 image data).
                 Button {
                     text: "Save Jobs"
                     visible: selectionMode
@@ -178,7 +195,8 @@ Item {
             }
         }
 
-        // === Selection Info ===
+
+        // Selection status readout; shown only while selection mode is active.
         Label {
             visible: selectionMode
             text: selectedIndexes.length + " job(s) selected"
@@ -190,7 +208,8 @@ Item {
             Layout.fillWidth: true
         }
 
-        // === Scrollable Job List ===
+
+        // Scrollable job list with click-to-open or click-to-toggle-select behavior.
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -207,6 +226,7 @@ Item {
                 spacing: 6
                 Layout.alignment: Qt.AlignHCenter
 
+				// Each row supports selection highlight and navigation into details.
                 delegate: ItemDelegate {
                     width: jobListView.width
                     highlighted: selectionMode && isSelected(index)
@@ -224,6 +244,8 @@ Item {
                         }
                     }
 
+
+					// Row content: optional checkbox + job name.
                     contentItem: RowLayout {
 						Layout.fillWidth: true
 						Layout.preferredHeight: parent.height
@@ -245,7 +267,7 @@ Item {
             }
         }
 
-        // === Bottom Toolbar ===
+        // Bottom toolbar for creating/loading jobs and kicking off print/PRN.
         Rectangle {
             Layout.fillWidth: true
             height: 50
@@ -265,28 +287,27 @@ Item {
                     onClicked: openFileDialog.open()
                 }
 
+				// Print entry point: either open save dialog (simulated printer) or send directly.
                 Button {
                     text: "Print Job"
                     enabled: selectedIndexes.length > 0
                     onClicked: {                    
-			const job = jobModel.getJob(selectedIndexes[0])
-			const jobName = job.name || "UntitledJob"
-			const downloads = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
-			const fullPath = downloads + "/" + jobName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".prn"
-			outputFileDialog.currentFile = fullPath
+						const job = jobModel.getJob(selectedIndexes[0])
+						const jobName = job.name || "UntitledJob"
+						const downloads = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+						const fullPath = downloads + "/" + jobName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".prn"
+						outputFileDialog.currentFile = fullPath
 
                         appState.usingSimulatedPrinter
                             ? outputFileDialog.open()
                             : printSelectedJobDirectly()
                     }
-                    // ToolTip.text: "Generate PRN file or print directly to the selected printer."
-                    // ToolTip.visible: hovered
                 }
             }
         }
 
 
-        // === File Dialogs ===
+        // File dialog for loading job JSON.
         FileDialog {
             id: openFileDialog
             title: "Load Jobs from JSON"
@@ -295,6 +316,8 @@ Item {
             onAccepted: jobModel.loadFromJson(file)
         }
 
+
+		// File dialog for saving selected jobs to JSON.
         FileDialog {
             id: saveFileDialog
             title: "Save Jobs to JSON"
@@ -304,6 +327,8 @@ Item {
             onAccepted: jobModel.saveToJson(file, selectedIndexes)
         }
 
+
+		// File dialog for choosing PRN output path when using the simulated printer.
         FileDialog {
             id: outputFileDialog
             title: "Select PRN File Destination"
@@ -321,6 +346,8 @@ Item {
             }
         }
 
+
+		// Connect to PRN completion signal to update UI and notify user.
         Connections {
             target: printJobNocai
 
@@ -337,6 +364,7 @@ Item {
             }
         }
 
+		// Lightweight toast for transient feedback.
         Toast {
             id: toast
             parent: Overlay.overlay
@@ -344,6 +372,7 @@ Item {
     }
     
     
+    // Full-screen progress overlay while PRN generation runs.
     Item {
         id: spinnerOverlay
 		anchors.fill: parent
@@ -354,6 +383,8 @@ Item {
             anchors.fill: parent
             color: "#00000088"
 
+
+			// Simple circular spinner built from rectangles with rotation animation.
 			Item {
 				width: 64
 				height: 64

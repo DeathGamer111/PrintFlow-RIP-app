@@ -15,9 +15,7 @@
 using namespace Magick;
 
 
-/*******************************************************************
-    ImageLoader constructor, Initializes supported file extensions.
-*******************************************************************/
+// Initializes supported extensions.
 ImageLoader::ImageLoader(QObject *parent) : QObject(parent) {
     supportedExtensions = { ".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".tif", ".svg", ".pdf" };
 }
@@ -251,59 +249,6 @@ QVariantMap ImageLoader::inspectImage(const QString &path) {
     return meta;
 }
 
-
-
-/*
-// Extract metadata (dimensions, format hints) from bitmap image files
-QVariantMap ImageLoader::inspectImage(const QString &path) {
-    QVariantMap meta;
-    QUrl url(path);
-    QString localPath = url.isLocalFile() ? url.toLocalFile() : path;
-
-    QFileInfo info(localPath);
-    QFile file(localPath);
-
-    if (!file.open(QIODevice::ReadOnly)) return meta;
-    QByteArray imageData = file.readAll();
-
-    int w = 0, h = 0, c = 0;
-    unsigned char* data = stbi_load_from_memory(
-        reinterpret_cast<const stbi_uc*>(imageData.constData()),
-        imageData.size(), &w, &h, &c, 0);
-
-    if (!data) return meta;
-    stbi_image_free(data);
-
-    // Basic metadata
-    meta["name"] = info.fileName();
-    meta["size"] = info.size();
-    meta["width"] = w;
-    meta["height"] = h;
-    meta["channels"] = c;
-    meta["extension"] = "." + info.suffix().toLower();
-
-    // Attempt to infer color profile from content
-    QString content(imageData);
-    QString profile = "Unknown";
-
-    const QStringList hints = {
-        "sRGB", "Adobe RGB", "CMYK", "Cyan", "Magenta", "Yellow", "Black",
-        "Ic", "Im", "IndexColor", "Indexed", "Palette", "8-color", "16-color",
-        "YCbCr", "LAB", "XYZ", "Gray", "Grayscale", "Mono"
-    };
-
-    for (const QString& hint : hints) {
-        if (content.contains(hint, Qt::CaseInsensitive)) {
-            profile = hint;
-            break;
-        }
-    }
-
-    meta["colorProfile"] = profile;
-
-    return meta;
-}
-*/
 
 // Extract metadata from vector/PDF files (name, size, basic format)
 QVariantMap ImageLoader::inspectSvgOrPdf(const QString &path) {

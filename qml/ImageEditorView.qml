@@ -3,24 +3,39 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.platform
 
+
+/* ImageEditorView.qml
+ * Lightweight, inline editor for basic raster edits using ImageEditor C++ backend.
+ * Workflow:
+ *   1) Load original → save a temp working copy
+ *   2) Apply edits to temp; preview updates live
+ *   3) Save commits temp → original path; Back cleans temp on exit
+ */
 Page {
     id: editorPage
     required property string imagePath
     
+    // Temp working copy path (same extension as source)
     property string tempPath: {
 		let parts = imagePath.split(".")
 		let ext = parts.length > 1 ? parts[parts.length - 1] : "png"
 		return imagePath + ".edit_tmp." + ext
     }
 
+
+	// Edit/session state
     property bool isDirty: true
     property string currentTool: "none"
 
+
+    // Crop tool state (editor units / preview overlay)
     property real cropX: 50
     property real cropY: 50
     property real cropW: 100
     property real cropH: 100
 
+
+    // Enhancement sliders (UI-side)
     property real brightness: 0
     property real contrast: 0
     property real hue: 0
@@ -28,11 +43,15 @@ Page {
     property real sharpness: 0
     property real gamma: 0
     
+    
+    // Sync resize spin boxes with actual image size
     function refreshImageSize() {
 	    resizeWidthSpin.value = imageEditor.getImageWidth()
 	    resizeHeightSpin.value = imageEditor.getImageHeight()
 	}
-
+	
+	
+	// Initialize editor: stage temp copy, then load it for live edits
     Component.onCompleted: {
         if (imageEditor.loadImage(imagePath)) {
             imageEditor.saveImage(tempPath)
@@ -48,12 +67,13 @@ Page {
         }
     }
 
-    // === Main Layout ===
+
+    // ============================ Main Layout ============================
     ColumnLayout {
         anchors.fill: parent
         spacing: 12
 
-        // === Top: Image Preview ===
+		// Preview pane with optional crop overlay
         Pane {
             Layout.fillWidth: true
             Layout.preferredHeight: 260
@@ -87,7 +107,8 @@ Page {
             }
         }
 
-        // === Middle: Scrollable Tool Panel ===
+		
+		// Tools panel (scrollable): Resize/View, Transform, Enhance, Effects
         ScrollView {
             id: scrollView
             Layout.fillWidth: true
@@ -104,6 +125,7 @@ Page {
                 spacing: 0
                 anchors.horizontalCenter: parent.horizontalCenter
 
+				// View tools (original/half/double + explicit WxH)
                 Pane {
                     width: Math.min(parent.width, 450)
                     padding: 20
@@ -190,7 +212,8 @@ Page {
 							}
 						}
 
-                        // === Transform Tools ===
+
+                        // Basic transforms (crop/flip/rotate)
                         GroupBox {
                             title: "Transform"
                             Layout.fillWidth: true
@@ -205,7 +228,7 @@ Page {
                             }
                         }
 
-                        // === Enhance Tools ===
+						// Enhancements (brightness/contrast/hue/sat/sharpness/gamma)
                         GroupBox {
                             title: "Enhance"
                             Layout.fillWidth: true
@@ -321,7 +344,7 @@ Page {
                             }
                         }
 
-                        // === Effects Tools ===
+						// Fun effects passthroughs
                         GroupBox {
                             title: "Effects"
                             Layout.fillWidth: true
@@ -342,7 +365,7 @@ Page {
             }
         }
 
-        // === Bottom: Save / Back Toolbar ===
+        // Save/Undo/Redo/Back controls
         Rectangle {
             Layout.fillWidth: true
             height: 60
@@ -405,21 +428,29 @@ Page {
         }
     }
 
+
+    // Toast for lightweight feedback
     Toast {
         id: toast
         parent: Overlay.overlay
     }
 
+
+    // Force preview reload with a cache-buster
     function refreshImage() {
         imagePreview.source = tempPath + "?" + Date.now()
     }
-
+	
+	
+	// Clean temp artifacts and leave editor
     function cleanupAndExit() {
         imageEditor.deleteFile(tempPath)
         imageEditor.clearUndoRedoStacks()
         stackView.pop()
     }
-    
+
+
+    // Return sliders to current backing values (after undo/redo)
     function resetSliders() {
 		brightnessSlider.value = brightness
 		contrastSlider.value = 50
@@ -429,6 +460,8 @@ Page {
 		gammaSlider.value = gamma
 	}
 
+
+	// Command router: calls through to C++ ImageEditor and updates preview/temp
     function apply(type, value) {
         const actions = {
             "flip":                 () => imageEditor.flip(value),
