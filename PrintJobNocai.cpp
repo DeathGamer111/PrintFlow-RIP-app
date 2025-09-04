@@ -401,31 +401,100 @@ std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(
 }
 
 
-// Neighborhood promotion (4x4 window) to upsize dots in dense areas; avoids coarse grain in highlights.
+
+
+
+// Gradual, one-step-only promotion with soft probability bands.
+// - Small -> Medium in a lower band
+// - Medium -> Large in a higher band
+// - No Small -> Large jump
+// - Tone-gated; avoids highlights and edges
 void PrintJobNocai::apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap,
                                       const std::vector<uint8_t>& tone,
-                                      int width, int height) {
-    // Promote only outside highlights to avoid coarse grain there
-    const uint8_t promoteToneGate = 112;
+                                      int width, int height)
+{
+    // ---- Tunables (gentle defaults) ----
+    const uint8_t  TONE_GATE        = 112;  // don’t promote in highlights
+    const int      MED_LO           = 18;   // weighted sum lower bound to *start* small->med
+    const int      MED_HI           = 26;   // upper bound where small->med becomes likely
+    const int      LRG_LO           = 28;   // weighted sum lower bound to *start* med->large
+    const int      LRG_HI           = 36;   // upper bound where med->large becomes likely
+    const int      FLAT_VAR_EPS     = 18;   // require fairly flat local tone (lower = stricter)
+    const int      MIN_NEI_INKED    = 8;    // need at least N/15 neighbors inked before considering
+    const int      KICK_BONUS       = 2;    // small, gentle bias (instead of big bias/override)
+
+    auto localMAD = [&](int cx, int cy) -> int {
+        int sum = 0, cnt = 0;
+        const int idxC = cy * width + cx;
+        const int vC = tone[idxC];
+        for (int dy = -1; dy <= 2; ++dy) {
+            int y = cy + dy; if (y < 0 || y >= height) continue;
+            for (int dx = -1; dx <= 2; ++dx) {
+                int x = cx + dx; if (x < 0 || x >= width) continue;
+                if (dx == 0 && dy == 0) continue;
+                sum += std::abs(int(tone[y*width + x]) - vC);
+                ++cnt;
+            }
+        }
+        return cnt ? (sum / cnt) : 0;
+    };
+
+    auto lerp01 = [](int v, int lo, int hi) -> float {
+        if (v <= lo) return 0.f;
+        if (v >= hi) return 1.f;
+        return float(v - lo) / float(hi - lo);
+    };
 
     for (int y = 1; y < height - 2; ++y) {
         for (int x = 1; x < width - 2; ++x) {
-            if (dotMap[y][x] == 3) continue;
 
+            uint8_t cls = dotMap[y][x];          // 0..3
+            if (cls == 0 || cls == 3) continue;  // only consider small(1) or medium(2)
             const int idx = y * width + x;
-            if (tone[idx] < promoteToneGate) continue; // Skip promotion in light tones
+            const uint8_t v = tone[idx];
+            if (v < TONE_GATE) continue;         // skip highlights
 
-            int count = 0;
-            for (int dy = -1; dy <= 2; ++dy)
-                for (int dx = -1; dx <= 2; ++dx)
-                    if (dotMap[y + dy][x + dx] > 0)
-                        ++count;
+            // Neighborhood stats (4×4, no center)
+            int weighted = 0;
+            int countAny = 0;
+            for (int dy = -1; dy <= 2; ++dy) {
+                for (int dx = -1; dx <= 2; ++dx) {
+                    if (dx == 0 && dy == 0) continue;
+                    uint8_t ncls = dotMap[y + dy][x + dx]; // 0..3
+                    if (ncls > 0) ++countAny;
+                    weighted += int(ncls);
+                }
+            }
 
-            if (count >= 12)
-                dotMap[y][x] = 3;
+            if (countAny < MIN_NEI_INKED) continue;  // too sparse → no promotion
+            if (localMAD(x, y) > FLAT_VAR_EPS) continue; // edges/textures → no promotion
+
+            // Small gentle bias (replaces big bonuses/overrides)
+            weighted += KICK_BONUS;
+
+            // Tone factor (0..1): higher tone should be more willing to coarsen
+            const float toneF = float(v) / 255.0f;
+
+            // Deterministic RNG from coords (no flicker between runs)
+            const uint32_t rnd = pxhash(x, y, 0, 0x51F2F90Du) & 0xFFFF;
+            const float r01 = float(rnd) / 65535.0f;
+
+            // Decide the band and compute probability
+            if (cls == 1) {
+                // small -> medium
+                float p = lerp01(weighted, MED_LO, MED_HI) * toneF; // soften by tone
+                if (r01 < p) dotMap[y][x] = 2;
+            } else if (cls == 2) {
+                // medium -> large
+                float p = lerp01(weighted, LRG_LO, LRG_HI) * toneF;
+                if (r01 < p) dotMap[y][x] = 3;
+            }
         }
     }
 }
+
+
+
 
 
 // 2bpp packing: 4 pixels per byte, bits [7..0] = p0[1:0] p1[1:0] p2[1:0] p3[1:0]; pad lines to 4-byte boundary.
@@ -616,7 +685,8 @@ void PrintJobNocai::prepareNocaiAssets() {
 
     // ICC Profiles
     copyIfMissing(":/assets/sRGBProfile.icm", assetsExtractPath + "/sRGBProfile.icm");
-    copyIfMissing(":/assets/RIP_App_Plain_720.icm", assetsExtractPath + "/RIP_App_Plain_720.icm");
+    copyIfMissing(":/assets/RIP_App_1440_Plain_Default.icc", assetsExtractPath + "/RIP_App_1440_Plain_Default.icc");
+    copyIfMissing(":/assets/RIP_App_1440_Plain_Neutral.icc", assetsExtractPath + "/RIP_App_1440_Plain_Neutral.icc");
     copyIfMissing(":/assets/RIP_App_Generic_CMYK.icc", assetsExtractPath + "/RIP_App_Generic_CMYK.icc");
 
     // Blue Noise Masks (256x256 Tiles, 12000x12000 Size)
@@ -640,10 +710,11 @@ void PrintJobNocai::prepareNocaiAssets() {
 	};
 
     // Register ICC Profiles for UI and set defaults.
-    addProfile("Plain Paper (720DPI)",  ":/assets/RIP_App_Plain_720.icm", "RIP_App_Plain_720.icm");
+    addProfile("Default - Plain Paper (1440DPI)",  ":/assets/RIP_App_1440_Plain_Default.icc", "RIP_App_1440_Plain_Default.icc");
+    addProfile("Neutral Profile - Plain Paper (1440DPI)",  ":/assets/RIP_App_1440_Plain_Neutral.icc", "RIP_App_1440_Plain_Neutral.icc");
     addProfile("sRGB Input", ":/assets/sRGBProfile.icm", "sRGBProfile.icm");
     addProfile("CMYK Input", ":/assets/RIP_App_Generic_CMYK.icc", "RIP_App_Generic_CMYK.icc");
-    setDefaultOutputICCProfile((assetsExtractPath + "/RIP_App_Plain_720.icm"));
+    setDefaultOutputICCProfile((assetsExtractPath + "/RIP_App_1440_Plain_Default.icc"));
     setDefaultInputCMYKProfile(assetsExtractPath + "/RIP_App_Generic_CMYK.icc");
 
     qDebug() << "Nocai assets prepared in:" << assetsExtractPath;

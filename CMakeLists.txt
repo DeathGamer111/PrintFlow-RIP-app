@@ -64,7 +64,8 @@ qt_add_resources(appRIPPrinterApp
         assets/blue_noise_mask_512_12000/mask_m.tiff
         assets/blue_noise_mask_512_12000/mask_y.tiff
         assets/blue_noise_mask_512_12000/mask_k.tiff
-        assets/RIP_App_Plain_720.icm
+        assets/RIP_App_1440_Plain_Default.icc
+        assets/RIP_App_1440_Plain_Neutral.icc
         assets/RIP_App_Generic_CMYK.icc
         assets/sRGBProfile.icm
 )

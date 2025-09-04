@@ -85,7 +85,7 @@ void PrintJobModel::addJob(const QString &name) {
     job.name = name;
     job.createdAt = QDateTime::currentDateTime();
     job.paperSize = QSize(210, 297);    // Default A4 Paper Size
-    job.resolution = QSize(720, 720);	// RIP default DPI.
+    job.resolution = QSize(720, 1440);	// RIP default DPI.
     job.offset = QPoint(0, 0);
     job.whiteStrategy = "None";
     job.varnishType = "None";

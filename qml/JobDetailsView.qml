@@ -51,7 +51,7 @@ Item {
         // Set saved DPI
 		const savedDPI = jobData.resolution.width + "x" + jobData.resolution.height
 		const dpiIdx = dpiOptions.indexOf(savedDPI)
-		resolutionComboBox.currentIndex = dpiIdx >= 0 ? dpiIdx : dpiOptions.indexOf("720x720")
+		resolutionComboBox.currentIndex = dpiIdx >= 0 ? dpiIdx : dpiOptions.indexOf("720x1440")
 		updatePrintedSize()
 
         if (appState.selectedPrinter.length > 0) {
@@ -176,7 +176,7 @@ Item {
 		jobData.minInkThreshold = minInkSpin.value
 		jobData.smallDotThreshold = smallDotSpin.value
 		jobData.medDotThreshold = medDotSpin.value
-		jobData.enablePromotion = 
+		jobData.enablePromotion = promotionCheck.checked
 		
 		// Floor gating + dot swap fields
 		jobData.floorRangeCMY = floorRangeCMYSpin.value
@@ -420,7 +420,7 @@ Item {
 										currentIndex: {
 											const dpiString = jobData.resolution.width + "x" + jobData.resolution.height
 											const idx = dpiOptions.indexOf(dpiString)
-											return idx >= 0 ? idx : dpiOptions.indexOf("720x720")
+											return idx >= 0 ? idx : dpiOptions.indexOf("720x1440")
 										}
 										onCurrentIndexChanged: updateResolution()
 									}
@@ -743,7 +743,7 @@ Item {
                             paperSize: jobData.paperSize,
                             resolution: (function() {
 								let parts = resolutionComboBox.currentText.split("x")
-								return (parts.length === 2) ? Qt.size(parseInt(parts[0]), parseInt(parts[1])) : Qt.size(720, 720)
+								return (parts.length === 2) ? Qt.size(parseInt(parts[0]), parseInt(parts[1])) : Qt.size(720, 1440)
 							})(),
                             offset: Qt.point(offsetXSpin.value, offsetYSpin.value),
                             whiteStrategy: whiteBox.currentText,
