@@ -16,10 +16,10 @@
 // Ink dot strategy (thresholds and optional neighborhood promotion).
 struct DotStrategy {
 	int minInkThreshold = 8;		// Below this (channel < min), skip Ink dotting in FM gate
-	int smallDotThreshold = 92;		// Base cut for SMALL after tone-normalization (tRel <= smallCut == small dot(1)
-	int medDotThreshold = 164;		// Base cut for MEDIUM (smallCut < tRel <= medCut == medium dot(2)
+	int smallDotThreshold = 104;	// Base cut for SMALL after tone-normalization (tRel <= smallCut == small dot(1)
+	int medDotThreshold = 168;		// Base cut for MEDIUM (smallCut < tRel <= medCut == medium dot(2)
 									// Everything else == large dot (3)
-	bool enablePromotion = true;	// Optional neighborhood-based upsize in dense areas
+	bool enablePromotion = false;	// Optional neighborhood-based upsize in dense areas
 	
     // Floor gating for FM screening.
 	uint8_t floorRangeCMY = 24;		// FM Screening Range for CMY

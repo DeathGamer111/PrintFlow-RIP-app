@@ -91,8 +91,8 @@ void PrintJobModel::addJob(const QString &name) {
     job.varnishType = "None";
     job.colorProfile = "sRGB";
     job.minInkThreshold = 8;
-    job.smallDotThreshold = 92;
-    job.medDotThreshold = 164;
+    job.smallDotThreshold = 96;
+    job.medDotThreshold = 160;
     job.enablePromotion = false;
     job.floorRangeCMY = 24;
     job.floorMaxCMY = 2;

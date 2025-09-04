@@ -365,7 +365,7 @@ std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(
             
             // Normalize mask to the *passed* tone range: tRel ~ [0..255] regardless of v
             // When v is small, only low t values pass; this rescales those to full 0..255.
-            const uint8_t tRel = (v == 0) ? 255 : static_cast<uint8_t>((static_cast<uint16_t>(t) * 255u) / v);
+            const uint8_t tRel = uint8_t((uint16_t(t) * v) / 255);
 
             // Bias the cuts by tone so highlights tend toward larger dots (your original intent),
             // but without forcing *everything* to large at all tones.
