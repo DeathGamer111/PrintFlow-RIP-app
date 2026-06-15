@@ -36,16 +36,9 @@ QVariant PrintJobModel::data(const QModelIndex &index, int role) const {
     case WhiteStrategyRole: return job.whiteStrategy;
     case VarnishTypeRole: return job.varnishType;
     case ColorProfileRole: return job.colorProfile;
-    case MinInkThresholdRole: return job.minInkThreshold;
-	case SmallDotThresholdRole: return job.smallDotThreshold;
-	case MedDotThresholdRole: return job.medDotThreshold;
-	case EnablePromotionRole: return job.enablePromotion;
-	case FloorRangeCMYRole: return job.floorRangeCMY;
-	case FloorMaxCMYRole:   return job.floorMaxCMY;
-	case FloorRangeKRole:   return job.floorRangeK;
-	case FloorMaxKRole:     return job.floorMaxK;
-	case EnableDotSwapRole: return job.enableDotSwap;
     case CreatedAtRole: return job.createdAt;
+    case WhitePlatePathRole: return job.whitePlatePath;
+    case VarnishPlatePathRole: return job.varnishPlatePath;
     default: return QVariant();
     }
 }
@@ -63,16 +56,9 @@ QHash<int, QByteArray> PrintJobModel::roleNames() const {
         {WhiteStrategyRole, "whiteStrategy"},
         {VarnishTypeRole, "varnishType"},
         {ColorProfileRole, "colorProfile"},
-        {MinInkThresholdRole, "minInkThreshold"},
-		{SmallDotThresholdRole, "smallDotThreshold"},
-		{MedDotThresholdRole, "medDotThreshold"},
-		{EnablePromotionRole, "enablePromotion"},
-		{FloorRangeCMYRole, "floorRangeCMY" },
-		{FloorMaxCMYRole, "floorMaxCMY" },
-		{FloorRangeKRole, "floorRangeK" },
-		{FloorMaxKRole, "floorMaxK" },
-		{EnableDotSwapRole, "enableDotSwap" },
-        {CreatedAtRole, "createdAt"}
+        {CreatedAtRole, "createdAt"},
+        {WhitePlatePathRole, "whitePlatePath"},
+        {VarnishPlatePathRole, "varnishPlatePath"}
     };
 }
 
@@ -90,15 +76,8 @@ void PrintJobModel::addJob(const QString &name) {
     job.whiteStrategy = "None";
     job.varnishType = "None";
     job.colorProfile = "sRGB";
-    job.minInkThreshold = 8;
-    job.smallDotThreshold = 96;
-    job.medDotThreshold = 160;
-    job.enablePromotion = false;
-    job.floorRangeCMY = 24;
-    job.floorMaxCMY = 2;
-    job.floorRangeK = 12;
-    job.floorMaxK = 0;
-    job.enableDotSwap = false;
+    job.whitePlatePath = "";
+    job.varnishPlatePath = "";
     m_jobs.append(job);
     endInsertRows();
     emit countChanged();
@@ -129,17 +108,10 @@ QVariantMap PrintJobModel::getJob(int index) const {
     map["whiteStrategy"] = job.whiteStrategy;
     map["varnishType"] = job.varnishType;
     map["colorProfile"] = job.colorProfile;
-    map["minInkThreshold"] = job.minInkThreshold;
-	map["smallDotThreshold"] = job.smallDotThreshold;
-	map["medDotThreshold"] = job.medDotThreshold;
-	map["enablePromotion"] = job.enablePromotion;
-	map["floorRangeCMY"] = job.floorRangeCMY;
-	map["floorMaxCMY"] = job.floorMaxCMY;
-	map["floorRangeK"] = job.floorRangeK;
-	map["floorMaxK"] = job.floorMaxK;
-	map["enableDotSwap"] = job.enableDotSwap;
     map["createdAt"] = job.createdAt;
-    
+    map["whitePlatePath"] = job.whitePlatePath;
+    map["varnishPlatePath"] = job.varnishPlatePath;
+        
     return map;
 }
 
@@ -147,24 +119,26 @@ QVariantMap PrintJobModel::getJob(int index) const {
 // Update a print job from a QVariantMap
 void PrintJobModel::updateJob(int index, const QVariantMap &jobData) {
     if (index < 0 || index >= m_jobs.size()) return;
+
     PrintJob &job = m_jobs[index];
-    job.name = jobData["name"].toString();
-    job.imagePath = jobData["imagePath"].toString();
-    job.paperSize = jobData["paperSize"].toSize();
-    job.resolution = jobData["resolution"].toSize();
-    job.offset = jobData["offset"].toPoint();
-    job.whiteStrategy = jobData["whiteStrategy"].toString();
-    job.varnishType = jobData["varnishType"].toString();
-    job.colorProfile = jobData["colorProfile"].toString();
-    job.minInkThreshold = jobData["minInkThreshold"].toInt();
-	job.smallDotThreshold = jobData["smallDotThreshold"].toInt();
-	job.medDotThreshold = jobData["medDotThreshold"].toInt();
-	job.enablePromotion = jobData["enablePromotion"].toBool();
-	job.floorRangeCMY = static_cast<uint8_t>(jobData.value("floorRangeCMY", job.floorRangeCMY).toInt());
-	job.floorMaxCMY = static_cast<uint8_t>(jobData.value("floorMaxCMY", job.floorMaxCMY).toInt());
-	job.floorRangeK = static_cast<uint8_t>(jobData.value("floorRangeK", job.floorRangeK).toInt());
-	job.floorMaxK = static_cast<uint8_t>(jobData.value("floorMaxK", job.floorMaxK).toInt());
-	job.enableDotSwap = jobData.value("enableDotSwap", job.enableDotSwap).toBool();
+
+    // Only update fields that are present, so partial updates don't wipe values.
+    if (jobData.contains("name"))          job.name = jobData.value("name").toString();
+    if (jobData.contains("imagePath"))     job.imagePath = jobData.value("imagePath").toString();
+
+    if (jobData.contains("paperSize"))     job.paperSize = jobData.value("paperSize").toSize();
+    if (jobData.contains("resolution"))    job.resolution = jobData.value("resolution").toSize();
+    if (jobData.contains("offset"))        job.offset = jobData.value("offset").toPoint();
+
+    if (jobData.contains("whiteStrategy")) job.whiteStrategy = jobData.value("whiteStrategy").toString();
+    if (jobData.contains("varnishType"))   job.varnishType = jobData.value("varnishType").toString();
+    if (jobData.contains("colorProfile"))  job.colorProfile = jobData.value("colorProfile").toString();
+    
+    if (jobData.contains("whitePlatePath"))    job.whitePlatePath = jobData.value("whitePlatePath").toString();
+    if (jobData.contains("varnishPlatePath"))  job.varnishPlatePath = jobData.value("varnishPlatePath").toString();
+
+    // Optional: allow createdAt updates if you ever want it from QML.
+    if (jobData.contains("createdAt"))     job.createdAt = jobData.value("createdAt").toDateTime();
 
     emit dataChanged(this->index(index), this->index(index));
 }
@@ -181,45 +155,45 @@ void PrintJobModel::loadFromJson(const QString &filePath) {
         return;
     }
 
-    QByteArray jsonData = file.readAll();
+    const QByteArray jsonData = file.readAll();
     file.close();
 
-    QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+    const QJsonDocument doc = QJsonDocument::fromJson(jsonData);
     QList<PrintJob> newJobs;
 
-    // Parse a single PrintJob from JSON
     auto parseObject = [&](const QJsonObject &obj) {
         PrintJob job;
         job.id = obj["id"].toString();
         job.name = obj["name"].toString();
         job.imagePath = obj["imagePath"].toString();  // May be overwritten below
+
         job.paperSize = QSize(obj["paperSizeWidth"].toInt(), obj["paperSizeHeight"].toInt());
         job.resolution = QSize(obj["resolutionWidth"].toInt(), obj["resolutionHeight"].toInt());
         job.offset.setX(obj["offsetX"].toInt());
         job.offset.setY(obj["offsetY"].toInt());
+
         job.whiteStrategy = obj["whiteStrategy"].toString();
         job.varnishType = obj["varnishType"].toString();
         job.colorProfile = obj["colorProfile"].toString();
-        job.minInkThreshold = obj["minInkThreshold"].toInt();
-		job.smallDotThreshold = obj["smallDotThreshold"].toInt();
-		job.medDotThreshold = obj["medDotThreshold"].toInt();
-		job.enablePromotion = obj["enablePromotion"].toBool();
-		job.floorRangeCMY = static_cast<uint8_t>(obj.value("floorRangeCMY").toInt(24));
-		job.floorMaxCMY = static_cast<uint8_t>(obj.value("floorMaxCMY").toInt(2));
-		job.floorRangeK = static_cast<uint8_t>(obj.value("floorRangeK").toInt(12));
-		job.floorMaxK = static_cast<uint8_t>(obj.value("floorMaxK").toInt(0));
-		job.enableDotSwap = obj.value("enableDotSwap").toBool(false);
+        
+		job.whitePlatePath = obj["whitePlatePath"].toString();
+		job.varnishPlatePath = obj["varnishPlatePath"].toString();
+
         job.createdAt = QDateTime::fromString(obj["createdAt"].toString(), Qt::ISODate);
+        if (!job.createdAt.isValid()) {
+            // Backward compatibility / missing field
+            job.createdAt = QDateTime::currentDateTime();
+        }
 
         // If image data is embedded, reconstruct the image file
         if (obj.contains("imageData")) {
-            QByteArray imageData = QByteArray::fromBase64(obj["imageData"].toString().toUtf8());
+            const QByteArray imageData = QByteArray::fromBase64(obj["imageData"].toString().toUtf8());
 
             QString originalExt = QFileInfo(job.imagePath).suffix();
             if (originalExt.isEmpty())
                 originalExt = "png";
 
-            QString newPath = QFileInfo(localPath).absoluteDir().filePath(job.id + "." + originalExt);
+            const QString newPath = QFileInfo(localPath).absoluteDir().filePath(job.id + "." + originalExt);
 
             QFile outImage(newPath);
             if (outImage.open(QIODevice::WriteOnly)) {
@@ -229,13 +203,18 @@ void PrintJobModel::loadFromJson(const QString &filePath) {
             }
         }
 
+        // If ID is missing, generate one (defensive)
+        if (job.id.isEmpty())
+            job.id = QString::number(QDateTime::currentMSecsSinceEpoch());
+
         newJobs.append(job);
     };
 
-    // Handle both array and single object formats
     if (doc.isArray()) {
-        for (const QJsonValue &val : doc.array()) {
-            parseObject(val.toObject());
+        const QJsonArray arr = doc.array();
+        for (const QJsonValue &val : arr) {
+            if (val.isObject())
+                parseObject(val.toObject());
         }
     }
     else if (doc.isObject()) {
@@ -246,7 +225,15 @@ void PrintJobModel::loadFromJson(const QString &filePath) {
         return;
     }
 
-    beginInsertRows(QModelIndex(), m_jobs.size(), m_jobs.size() + newJobs.size() - 1);
+    if (newJobs.isEmpty()) {
+        qDebug() << "[LOAD JSON] No jobs found in" << localPath;
+        return;
+    }
+
+    const int start = m_jobs.size();
+    const int end = start + newJobs.size() - 1;
+
+    beginInsertRows(QModelIndex(), start, end);
     m_jobs.append(newJobs);
     endInsertRows();
     emit countChanged();
@@ -281,16 +268,10 @@ void PrintJobModel::saveToJson(const QString &filePath, const QList<int> &select
         obj["whiteStrategy"] = job.whiteStrategy;
         obj["varnishType"] = job.varnishType;
         obj["colorProfile"] = job.colorProfile;
-        obj["minInkThreshold"] = job.minInkThreshold;
-		obj["smallDotThreshold"] = job.smallDotThreshold;
-		obj["medDotThreshold"] = job.medDotThreshold;
-		obj["enablePromotion"] = job.enablePromotion;
-		obj["floorRangeCMY"] = static_cast<int>(job.floorRangeCMY);
-		obj["floorMaxCMY"] = static_cast<int>(job.floorMaxCMY);
-		obj["floorRangeK"] = static_cast<int>(job.floorRangeK);
-		obj["floorMaxK"] = static_cast<int>(job.floorMaxK);
-		obj["enableDotSwap"] = job.enableDotSwap;
         obj["createdAt"] = job.createdAt.toString(Qt::ISODate);
+        obj["whitePlatePath"] = job.whitePlatePath;
+        obj["varnishPlatePath"] = job.varnishPlatePath;
+                
 
         // Embed image base64 if available
         QFile imageFile(QUrl(job.imagePath).toLocalFile());

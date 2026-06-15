@@ -21,18 +21,10 @@ struct PrintJob {
     QString whiteStrategy;      // Strategy for white ink printing
     QString varnishType;        // Type of varnish applied
     QString colorProfile;       // ICC color profile or label
-    
-	int minInkThreshold;		// Minimum Ink Threshold Value
-	int smallDotThreshold;		// Threshold for Small Ink Dots
-	int medDotThreshold;		// Threshold for Medium Ink Dots
-	bool enablePromotion;		// Dot Promotion Enabled/Disabled
-	
-	uint8_t floorRangeCMY;		// FM Screening Range for CMY
-    uint8_t floorMaxCMY;		// FM Screening Max for CMY
-    uint8_t floorRangeK;		// FM Screening Range for K
-    uint8_t floorMaxK;			// FM Screening Max for K
-    bool enableDotSwap;			// Swap Large and Small Ink Dots
 
     QDateTime createdAt;        // Timestamp when job was created
+    
+    QString whitePlatePath;	// optional grayscale raster plate for White Plate mode
+    QString varnishPlatePath;	// optional grayscale raster plate for Varnish Plate mode
 };
 

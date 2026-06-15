@@ -1,9 +1,0 @@
-Fix image preview to remove the edges of the rectangle if the image is smaller than the bounding area
-Fix Imposition View
-Fix Croping
-Fix Brightness, Hue, and Saturation settings (separate functions)
-Fix Undo/Redo buttons
-Fix Draw Text / Draw shapes
-Check Supported options functions inside PrintJobOutput
-Hook up image position to PrintOutput
-Fix Litte CMS for Android build

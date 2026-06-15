@@ -7,7 +7,6 @@ import QtQuick
  * 	logical coordinates. 
  */
 Item {
-
     id: root
 
 	// Content to render inside the draggable wrapper
@@ -24,8 +23,8 @@ Item {
     property alias contentItem: contentLoader.item
 
 	// Track the contents intrinsic size (prior to scaling)
-    width: loaderWrapper.implicitWidth
-    height: loaderWrapper.implicitHeight
+	width: loaderWrapper.contentW
+	height: loaderWrapper.contentH
 
 	// Derive screen-space position from logical mm coordinates
     x: itemX * zoomFactor
@@ -36,6 +35,9 @@ Item {
     Item {
         id: loaderWrapper
         anchors.fill: parent
+        
+		property real contentW: 0
+  		property real contentH: 0
 		
 		// The actual content; when loaded, capture intrinsic size if available
         Loader {
@@ -44,14 +46,13 @@ Item {
             sourceComponent: root.sourceComponent
             
 			onLoaded: {
-                console.log("Loader item loaded:", item)
-                console.log("    → width:", item?.width, "implicitWidth:", item?.implicitWidth,
-                            "height:", item?.height, "implicitHeight:", item?.implicitHeight)
-                if (item && item.implicitWidth > 0)
-                    loaderWrapper.implicitWidth = item.implicitWidth
-                if (item && item.implicitHeight > 0)
-                    loaderWrapper.implicitHeight = item.implicitHeight
-            }
+				if (item) {
+					const w = item.implicitWidth > 0 ? item.implicitWidth : item.width
+					const h = item.implicitHeight > 0 ? item.implicitHeight : item.height
+					loaderWrapper.contentW = w
+					loaderWrapper.contentH = h
+				}
+			}
         }
 		
 		// Mouse-based dragging; updates logical coordinates after release

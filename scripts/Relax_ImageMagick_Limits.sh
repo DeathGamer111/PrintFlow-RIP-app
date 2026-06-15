@@ -1,60 +1,78 @@
 #!/bin/bash
+set -euo pipefail
 
-# No sudo logic here — assume it's run with elevated privileges
+# Must be run with sudo/root.
+if [[ $EUID -ne 0 ]]; then
+  echo "Please run as root: sudo $0"
+  exit 1
+fi
 
-# Desired limits
-declare -A LIMITS=(
-    [memory]="2GiB"
-    [map]="4GiB"
-    [disk]="8GiB"
-    [width]="10000"
-    [height]="10000"
-    [area]="10000"
-)
+# Targets (tune as needed)
+MEMORY="8GiB"
+MAP="12GiB"
+DISK="32GiB"
+AREA="512MP"
+WIDTH="32KP"
+HEIGHT="32KP"
 
-# Common policy.xml paths
 CANDIDATES=(
-    "/etc/ImageMagick-6/policy.xml"
-    "/etc/ImageMagick/policy.xml"
-    "/usr/local/etc/ImageMagick/policy.xml"
+  "/etc/ImageMagick-6/policy.xml"
+  "/etc/ImageMagick/policy.xml"
+  "/etc/ImageMagick-7/policy.xml"
+  "/usr/local/etc/ImageMagick-6/policy.xml"
+  "/usr/local/etc/ImageMagick/policy.xml"
+  "/usr/local/etc/ImageMagick-7/policy.xml"
 )
+
+ensure_policy () {
+  local file="$1"
+  local name="$2"
+  local value="$3"
+
+  # If policy for this resource exists, replace its value (regardless of existing units/formatting).
+  # Otherwise, insert a new policy line just after <policymap> (common structure).
+  if grep -Eq "domain=\"resource\"[^>]*name=\"$name\"" "$file"; then
+    perl -0777 -i -pe \
+      "s/(<policy\\s+domain=\"resource\"[^>]*name=\"$name\"[^>]*value=\")[^\"]*(\"[^>]*\\/?>)/\${1}$value\${2}/g" \
+      "$file"
+  else
+    perl -0777 -i -pe \
+      "s/(<policymap>\\s*)/\$1  <policy domain=\"resource\" name=\"$name\" value=\"$value\"\\/>\n/si" \
+      "$file"
+  fi
+}
+
+enable_coder () {
+  local file="$1"
+  local pattern="$2"
+
+  # If there's a coder deny for this pattern, convert it to read|write.
+  if grep -Eq "<policy\\s+domain=\"coder\"[^>]*pattern=\"$pattern\"" "$file"; then
+    perl -0777 -i -pe \
+      "s/<policy\\s+domain=\"coder\"([^>]*?)pattern=\"$pattern\"([^>]*?)rights=\"none\"([^>]*?)\\/>/<policy domain=\"coder\"\\1pattern=\"$pattern\"\\2rights=\"read|write\"\\3\\/>/g" \
+      "$file"
+  fi
+}
 
 for FILE in "${CANDIDATES[@]}"; do
-    if [[ -f "$FILE" ]]; then
-        echo "Found policy.xml at: $FILE"
+  if [[ -f "$FILE" ]]; then
+    echo "Found policy.xml: $FILE"
+    cp -f "$FILE" "$FILE.bak.$(date +%Y%m%d_%H%M%S)"
 
-        # Backup the file
-        cp "$FILE" "$FILE.bak"
-        echo "Backed up original file to: $FILE.bak"
+    ensure_policy "$FILE" "memory" "$MEMORY"
+    ensure_policy "$FILE" "map" "$MAP"
+    ensure_policy "$FILE" "disk" "$DISK"
+    ensure_policy "$FILE" "area" "$AREA"
+    ensure_policy "$FILE" "width" "$WIDTH"
+    ensure_policy "$FILE" "height" "$HEIGHT"
 
-        # Update resource limits
-		for key in "${!LIMITS[@]}"; do
-            desired="${LIMITS[$key]}"
-            current=$(grep -oP "<policy domain=\"resource\" name=\"$key\" value=\"\K[^\"]+" "$FILE")
+    # Optional: allow PDF if you need it (keep your original intent)
+    enable_coder "$FILE" "PDF"
 
-            if [[ -n "$current" ]]; then
-                if [[ "$current" =~ ^[0-9]+$ && "$current" -lt "${desired//[^0-9]/}" ]]; then
-                    echo "Raising $key from $current to $desired"
-                    sed -i "s|<policy domain=\"resource\" name=\"$key\" value=\"[^\"]*\"/>|<policy domain=\"resource\" name=\"$key\" value=\"$desired\"/>|" "$FILE"
-                else
-                    echo "$key already set to $current (ok)"
-                fi
-            else
-                echo "Adding $key limit"
-                sed -i "/<policymap>/a <policy domain=\"resource\" name=\"$key\" value=\"$desired\"/>" "$FILE"
-            fi
-        done
-        
-        # Remove or update PDF restrictions
-        if grep -q '<policy domain="coder" rights="none" pattern="PDF"' "$FILE"; then
-            echo "Enabling PDF support by modifying policy."
-            sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/' "$FILE"
-        fi
-
-        echo "✅ Successfully updated ImageMagick resource limits."
-        exit 0
-    fi
+    echo "Updated limits in: $FILE"
+  fi
 done
 
-echo "❌ Could not find policy.xml in standard locations."
-exit 1
+echo "Done. Current ImageMagick policy output (may reflect multiple files depending on version):"
+command -v identify >/dev/null 2>&1 && identify -list policy || true
+

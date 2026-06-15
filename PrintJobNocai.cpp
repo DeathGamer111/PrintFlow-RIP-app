@@ -56,72 +56,131 @@ static inline uint8_t lerp_u8(uint8_t a, uint8_t b, uint8_t w /*0..255*/) {
 void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath) {
     (void) QtConcurrent::run([=]() {
         bool success = false;
-        
-        const QString imagePath 	= jobMap["imagePath"].toString();
-        const QSize resolution 		= jobMap["resolution"].toSize();
-        const QString colorProfile 	= jobMap["colorProfile"].toString();
-        const int minThreshold 		= jobMap["minInkThreshold"].toInt();
-		const int smallThreshold 	= jobMap["smallDotThreshold"].toInt();
-		const int medThreshold 		= jobMap["medDotThreshold"].toInt();
-		const bool promotionEnabled = jobMap["enablePromotion"].toBool();
-		const int  floorRangeCMY    = jobMap.value("floorRangeCMY", 24).toInt();
-		const int  floorMaxCMY      = jobMap.value("floorMaxCMY",   2).toInt();
-		const int  floorRangeK      = jobMap.value("floorRangeK",  12).toInt();
-		const int  floorMaxK        = jobMap.value("floorMaxK",     0).toInt();
-		const bool enableDotSwap    = jobMap.value("enableDotSwap", false).toBool();
 
-		setDotStrategy(minThreshold,
-               smallThreshold,
-               medThreshold,
-               promotionEnabled,
-               static_cast<uint8_t>(floorRangeCMY),
-               static_cast<uint8_t>(floorMaxCMY),
-               static_cast<uint8_t>(floorRangeK),
-               static_cast<uint8_t>(floorMaxK),
-               enableDotSwap
+        // Ensure runtime assets are ready
+        const_cast<PrintJobNocai*>(this)->prepareNocaiAssets();
+        qDebug() << "PrintJobNocai::runPRNGeneration: assetsExtractPath =" << assetsExtractPath;
+
+        // ---- Basic job fields ----
+        const QString imagePath  = jobMap.value("imagePath").toString();
+        const QSize   resolution = jobMap.value("resolution").toSize();
+
+        // ============================================================
+        // Dot Strategy: ColorManager ALWAYS takes precedence
+        // (No per-job dot strategy overrides; jobMap keys are ignored)
+        // ============================================================
+        const int  minThreshold     = (m_colorManager ? m_colorManager->minInkThreshold()   : dotStrategy.minInkThreshold);
+        const int  smallThreshold   = (m_colorManager ? m_colorManager->smallDotThreshold() : dotStrategy.smallDotThreshold);
+        const int  medThreshold     = (m_colorManager ? m_colorManager->medDotThreshold()   : dotStrategy.medDotThreshold);
+        const bool promotionEnabled = (m_colorManager ? m_colorManager->enablePromotion()   : dotStrategy.enablePromotion);
+
+        const int  floorRangeCMY    = (m_colorManager ? m_colorManager->floorRangeCMY()     : int(dotStrategy.floorRangeCMY));
+        const int  floorMaxCMY      = (m_colorManager ? m_colorManager->floorMaxCMY()       : int(dotStrategy.floorMaxCMY));
+        const int  floorRangeK      = (m_colorManager ? m_colorManager->floorRangeK()       : int(dotStrategy.floorRangeK));
+        const int  floorMaxK        = (m_colorManager ? m_colorManager->floorMaxK()         : int(dotStrategy.floorMaxK));
+        const bool enableDotSwap    = (m_colorManager ? m_colorManager->enableDotSwap()     : dotStrategy.enableDotSwap);
+
+        const_cast<PrintJobNocai*>(this)->setDotStrategy(
+            minThreshold,
+            smallThreshold,
+            medThreshold,
+            promotionEnabled,
+            static_cast<uint8_t>(std::clamp(floorRangeCMY, 0, 64)),
+            static_cast<uint8_t>(std::clamp(floorMaxCMY,   0,  8)),
+            static_cast<uint8_t>(std::clamp(floorRangeK,   0, 64)),
+            static_cast<uint8_t>(std::clamp(floorMaxK,     0,  8)),
+            enableDotSwap
         );
 
-		qDebug() << "Dot strategy updated:"
-				 << "MinInk:" << dotStrategy.minInkThreshold
-				 << "SmallCut:" << dotStrategy.smallDotThreshold
-				 << "MedCut:" << dotStrategy.medDotThreshold
-				 << "Promotion:" << dotStrategy.enablePromotion
-				 << "SwapSmallLarge:" << dotStrategy.enableDotSwap
-				 << "Floor(CMY):" << dotStrategy.floorRangeCMY << "/" << dotStrategy.floorMaxCMY
-				 << "Floor(K):"   << dotStrategy.floorRangeK   << "/" << dotStrategy.floorMaxK;
+        // ---- Resolve output ICC (job override if it's a REAL ICC file -> else ColorManager -> else default asset) ----
+        auto normalizeLocalPath = [](const QString& s) -> QString {
+            if (s.startsWith("file:", Qt::CaseInsensitive))
+                return QUrl(s).toLocalFile();
+            return s;
+        };
 
+        auto looksLikeIccPath = [&](const QString& s) -> bool {
+            const QString p = normalizeLocalPath(s).trimmed();
+            if (p.isEmpty()) return false;
+            const QString low = p.toLower();
+            if (!(low.endsWith(".icc") || low.endsWith(".icm"))) return false;
+            return QFileInfo::exists(p);
+        };
+
+        const QString jobColorProfile = jobMap.value("colorProfile").toString().trimmed();
+
+        QString outputICC;
+        if (looksLikeIccPath(jobColorProfile)) {
+            outputICC = normalizeLocalPath(jobColorProfile);
+        } else if (m_colorManager) {
+            const QString cmOut = m_colorManager->effectiveOutputProfile().trimmed();
+            if (looksLikeIccPath(cmOut))
+                outputICC = normalizeLocalPath(cmOut);
+        }
+        if (outputICC.isEmpty()) {
+            outputICC = defaultOutputICCPath; // internal default in assets dir
+        }
+
+        qDebug() << "PrintJobNocai: dot strategy updated (ColorManager precedence)"
+                 << "minInk=" << dotStrategy.minInkThreshold
+                 << "small="  << dotStrategy.smallDotThreshold
+                 << "med="    << dotStrategy.medDotThreshold
+                 << "promo="  << dotStrategy.enablePromotion
+                 << "dotSwap="<< dotStrategy.enableDotSwap
+                 << "floor(CMY)=" << dotStrategy.floorRangeCMY << "/" << dotStrategy.floorMaxCMY
+                 << "floor(K)="   << dotStrategy.floorRangeK   << "/" << dotStrategy.floorMaxK
+                 << "outputICC="  << outputICC;
+
+        // ---- Load image ----
         if (loadInputImage(imagePath)) {
-            // Convert to printer CMYK as needed.
+
+            // ---- ICC conversion logic ----
             if (inputImage.colorSpace() != Magick::CMYKColorspace) {
-                qDebug() << "Input is NOT CMYK — applying ICC conversion (sRGB → RIP CMYK)";
+                qDebug() << "PrintJobNocai: input NOT CMYK — applying ICC (sRGB → printer CMYK)";
 
-                QString inputICC = assetsExtractPath + "/sRGBProfile.icm";
-                QString outputICC = defaultOutputICCPath;
-
-                success = applyICCConversion(inputICC, outputICC);
-                
-             } else {
-                // CMYK source → optionally CMYK -> Printer CMYK using global toggle/path
-                if (useDefaultInputCMYK && !defaultInputCMYKPath.isEmpty()) {
-                    qDebug() << "Input is CMYK — applying ICC conversion (Default CMYK Input → RIP CMYK)";
-                    const QString inputICC  = defaultInputCMYKPath;
-                    const QString outputICC = defaultOutputICCPath;
+                const QString inputICC = assetsExtractPath + "/sRGBProfile.icm";
+                if (!outputICC.isEmpty()) {
                     success = applyICCConversion(inputICC, outputICC);
                 } else {
-                    qDebug() << "Input is CMYK, default CMYK input profile disabled — skipping ICC conversion.";
-                    success = true; // Default CMYK Profile Off
+                    qWarning() << "PrintJobNocai: no output ICC available; cannot convert.";
+                    success = false;
+                }
+
+            } else {
+                if (useDefaultInputCMYK) {
+                    // Prefer ColorManager default input CMYK if set; otherwise fall back to internal defaultInputCMYKPath
+                    QString inCMYK = defaultInputCMYKPath;
+                    if (m_colorManager) {
+                        const QString cmIn = m_colorManager->defaultInputProfile().trimmed();
+                        if (!cmIn.isEmpty())
+                            inCMYK = cmIn;
+                    }
+
+                    if (!inCMYK.isEmpty() && !outputICC.isEmpty()) {
+                        qDebug() << "PrintJobNocai: input CMYK — applying ICC (Default CMYK → printer CMYK)";
+                        success = applyICCConversion(inCMYK, outputICC);
+                    } else {
+                        qWarning() << "PrintJobNocai: CMYK input ICC or output ICC missing; skipping conversion.";
+                        success = true; // keep pipeline running
+                    }
+
+                } else {
+                    qDebug() << "PrintJobNocai: input CMYK — skipping ICC conversion.";
+                    success = true;
                 }
             }
-            
-            // Stable-but-changing screen seed based on path and time.
-			screenSeed = qHash(imagePath) ^ static_cast<uint32_t>(QDateTime::currentMSecsSinceEpoch() & 0xFFFFFFFF);
 
+            // Seed FM phase
+            screenSeed = qHash(imagePath) ^ static_cast<uint32_t>(QDateTime::currentMSecsSinceEpoch() & 0xFFFFFFFF);
+
+            // Generate PRN
             if (success) {
                 const int xdpi = resolution.width();
                 const int ydpi = resolution.height();
                 success = generateFinalPRN(outputPath, xdpi, ydpi);
             }
         }
+
         emit prnGenerationFinished(success);
     });
 }
@@ -313,6 +372,11 @@ std::array<Magick::Image, 4> PrintJobNocai::separateCMYK(Magick::Image& cmykImag
 
     return channels;
 }
+
+void PrintJobNocai::setColorManager(ColorManagementManager* mgr) {
+    m_colorManager = mgr;
+}
+
 
 
 // Set all ink dot thresholds and promotion toggle at once.
@@ -653,6 +717,15 @@ bool PrintJobNocai::checkDefaultInputCMYK() const { return useDefaultInputCMYK; 
 
 // Add a named ICC profile to the in-memory list.
 void PrintJobNocai::addICCProfile(const QString& name, const QString& path) {
+    // Avoid duplicates: if this path is already in the list, skip adding.
+    for (const auto& pair : availableICCProfiles) {
+        if (pair.second == path) {
+            qDebug() << "PrintJobNocai::addICCProfile: skipping duplicate ICC profile at"
+                     << path;
+            return;
+        }
+    }
+    
     availableICCProfiles.append({name, path});
 }
 
@@ -674,6 +747,12 @@ QVariantList PrintJobNocai::getAvailableICCProfiles() const {
 // Copy runtime assets (profiles and masks) out of resources to a writeable temp location.
 // Also initialize defaults and register profiles for UI selection.
 void PrintJobNocai::prepareNocaiAssets() {
+    // If assests have been moved and directory still exists, skip all the work.
+    if (assetsPrepared && !assetsExtractPath.isEmpty() && QDir(assetsExtractPath).exists()) {
+        qDebug() << "PrintJobMuNocai: assets already prepared in" << assetsExtractPath;
+        return;
+    }
+    
     assetsExtractPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/runtime_assets";
     QDir().mkpath(assetsExtractPath);
 
@@ -689,12 +768,6 @@ void PrintJobNocai::prepareNocaiAssets() {
     copyIfMissing(":/assets/RIP_App_1440_Plain_Neutral.icc", assetsExtractPath + "/RIP_App_1440_Plain_Neutral.icc");
     copyIfMissing(":/assets/RIP_App_Generic_CMYK.icc", assetsExtractPath + "/RIP_App_Generic_CMYK.icc");
 
-    // Blue Noise Masks (256x256 Tiles, 12000x12000 Size)
-    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_c.tiff", assetsExtractPath + "/mask_256_c.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_m.tiff", assetsExtractPath + "/mask_256_m.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_y.tiff", assetsExtractPath + "/mask_256_y.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_256_12000/mask_k.tiff", assetsExtractPath + "/mask_256_k.tiff");
-    
     // Blue Noise Masks (512x512 Tiles, 12000x12000 Size)
     copyIfMissing(":/assets/blue_noise_mask_512_12000/mask_c.tiff", assetsExtractPath + "/mask_512_c.tiff");
     copyIfMissing(":/assets/blue_noise_mask_512_12000/mask_m.tiff", assetsExtractPath + "/mask_512_m.tiff");

@@ -2,21 +2,25 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.platform
+import "."
 
-
-// Printer configuration screen: supports simulated (Nocai) and network printers,
-// ICC profile selection/registration, and capability display.
 Page {
-    id: setupPage
+    id: root
     required property StackView stackView
     required property var appState
+    required property Theme theme
 
+    background: Rectangle { color: theme.bg }
 
-	// Populate detected network printers when the page loads.
-    Component.onCompleted: {
-    	printJobOutput.refreshDetectedPrinters()
-    }
+    // Tracks which ICC dropdown to update after a file is chosen.
+    property string iccDialogTarget: "output" // "output" | "inputCMYK" | "deviceLink"
+    property string linearizationDialogTarget: "printerLinearization"
 
+    // In-memory ICC list for dropdowns; populated from backend and user uploads.
+    ListModel { id: iccProfileModel }
+    ListModel { id: deviceLinkModel }
+    
+    property bool _syncingTabs: false
 
     // Static capability map used for the simulated Nocai devices.
     property var nocaiPrinterCapabilities: {
@@ -26,389 +30,927 @@ Page {
             duplexModes: ["None"],
             colorModes: ["CMYK", "CMYKWW", "CMYKWV"]
         },
-        
-  		"X-24": {
+
+        "X-24": {
             resolutions: ["720x720", "720x1440", "720x2160"],
             mediaSizes: ["A2", "A3", "A4", "A5", "A6", "Tabloid"],
             duplexModes: ["None"],
             colorModes: ["CMYK", "CMYKWW", "CMYKWV"]
+        },
+
+        "X-36NC (Photo Printer)": {
+            resolutions: ["720x720", "720x1440", "720x2160"],
+            mediaSizes: ["A2", "A3", "A4", "A5", "A6", "Tabloid"],
+            duplexModes: ["None"],
+            colorModes: [
+                "4: CMYK",
+                "5: CMYK+W",
+                "6: CMYK+Lc+Lm",
+                "7: CMYK+Lc+Lm+W",
+                "8: CMYK+Lc+Lm+Lk+LLk",
+                "10: CMYK+Lc+Lm+Lk+LLk+W+V"
+            ]
         }
     }
-    
-    
-    // Tracks which ICC dropdown to update after a file is chosen.
-    property string iccDialogTarget: "output" // "output" | "inputCMYK"
-    
-    
-    // In-memory ICC list for dropdowns; populated from backend and user uploads.
-	ListModel {
-		id: iccProfileModel
+
+    function hasPrinterSelected() {
+        return appState.selectedPrinter && appState.selectedPrinter.length > 0
+    }
+
+    function activeBackend() {
+        if (!hasPrinterSelected()) return null
+        return appState.usingMultiInkPrinter ? printJobMultiInk : printJobNocai
+    }
+
+    function normalizePath(urlOrPath) {
+        const s = (urlOrPath || "").toString()
+        return s.startsWith("file://") ? s.slice(7) : s
+    }
+
+	function currentOutputProfileInkMode() {
+		if (appState.usingMultiInkPrinter) {
+		    return appState.multiInkInkMode || 4
+		}
+
+		// Non-multi-ink Nocai path:
+		// treat as Family A fallback for now
+		return 4
 	}
 
+	function resolvedOutputProfileForCurrentSelection() {
+		if (!hasPrinterSelected())
+		    return ""
 
-	// Main layout wrapper with centered content and modest max width.
-    ColumnLayout {
-	    anchors.fill: parent
-		anchors.margins: 20
-        spacing: 20
-        Layout.alignment: Qt.AlignHCenter
-        width: Math.min(parent.width, 450)
+		const inkMode = currentOutputProfileInkMode()
+		return colorManager.effectiveOutputProfileForPrinterAndInkMode(appState.selectedPrinter, inkMode)
+	}
 
-		// Title
-        Label {
-            text: "Printer Setup"
-            font.pixelSize: 22
+	function applyResolvedOutputProfileToBackend() {
+		const backend = activeBackend()
+		if (!backend)
+		    return
+
+		const resolved = resolvedOutputProfileForCurrentSelection()
+		if (resolved && resolved.length > 0) {
+		    backend.setDefaultOutputICCProfile(resolved)
+		}
+	}
+	
+	function currentFamilyKey() {
+		return colorManager.outputProfileFamilyForInkMode(currentOutputProfileInkMode())
+	}
+
+	function resolvedLinearizationForCurrentSelection() {
+		if (!hasPrinterSelected())
+		    return ""
+
+		const inkMode = currentOutputProfileInkMode()
+		return colorManager.effectiveLinearizationPathForPrinterAndInkMode(appState.selectedPrinter, inkMode)
+	}
+
+	function syncUIFromAppState() {
+
+		// --- Simulated / Nocai path ---
+		if (appState.usingSimulatedPrinter) {
+		    const selected = appState.selectedPrinter || ""
+
+		    // Pre-select Nocai model if one is already chosen
+		    const nocaiNames = ["X-33", "X-36NC (Photo Printer)"]
+		    const nocaiIndex = nocaiNames.indexOf(selected)
+		    if (nocaiIndex >= 0)
+		        nocaiPrinterComboBox.currentIndex = nocaiIndex
+
+		    const isMultiInk = (selected === "X-36NC (Photo Printer)")
+		    appState.usingMultiInkPrinter = isMultiInk
+
+		    // Choose backend and ensure assets/ICC are ready
+		    let backend
+		    if (isMultiInk) {
+		        backend = printJobMultiInk
+		        printJobMultiInk.prepareAssets()
+		    } else {
+		        backend = printJobNocai
+		        printJobNocai.prepareNocaiAssets()
+		    }
+
+		    // Rebuild ICC list from backend
+		    iccProfileModel.clear()
+		    const profiles = backend.getAvailableICCProfiles()
+		    for (let i = 0; i < profiles.length; ++i) {
+		        iccProfileModel.append(profiles[i])
+		    }
+
+		    // Sync Output ICC dropdown
+			const resolvedOutput = root.resolvedOutputProfileForCurrentSelection()
+			if (resolvedOutput && resolvedOutput.length > 0) {
+				backend.setDefaultOutputICCProfile(resolvedOutput)
+			}
+
+			const currentDefault = (resolvedOutput && resolvedOutput.length > 0)
+					? resolvedOutput
+					: backend.getDefaultOutputICCProfile()
+
+			iccProfileDropdown.currentIndex = -1
+			for (let i = 0; i < iccProfileModel.count; ++i) {
+				if (iccProfileModel.get(i).path === currentDefault) {
+					iccProfileDropdown.currentIndex = i
+					break
+				}
+			}
+
+		    // Sync Input CMYK dropdown
+		    const currentInputCmyk = backend.getDefaultInputCMYKProfile()
+		    inputCmykDropdown.currentIndex = -1
+		    for (let i = 0; i < iccProfileModel.count; ++i) {
+		        if (iccProfileModel.get(i).path === currentInputCmyk) {
+		            inputCmykDropdown.currentIndex = i
+		            break
+		        }
+		    }
+
+		    // Sync toggle
+		    useInputCmykSwitch.checked = backend.checkDefaultInputCMYK()
+
+		    // Sync Ink Layout for multi-ink printer
+		    if (isMultiInk) {
+		        for (let i = 0; i < inkLayoutCombo.model.count; ++i) {
+		            const elem = inkLayoutCombo.model.get(i)
+		            if (elem.value === appState.multiInkInkMode) {
+		                inkLayoutCombo.currentIndex = i
+		                break
+		            }
+		        }
+		        printJobMultiInk.setInkMode(appState.multiInkInkMode)
+		        printJobMultiInk.enableDefaultInputCMYK(true)
+		    }
+
+		    // Guard in case the DeviceLink UI hasn't been instantiated yet
+		    if (typeof deviceLinkModel !== "undefined" &&
+		        typeof deviceLinkSwitch !== "undefined" &&
+		        typeof deviceLinkDropdown !== "undefined") {
+
+		        deviceLinkModel.clear()
+
+		        if (isMultiInk) {
+		            const links = printJobMultiInk.getAvailableDeviceLinkProfiles()
+		            for (let i = 0; i < links.length; ++i) {
+		                deviceLinkModel.append(links[i])
+		            }
+
+		            // Toggle from backend
+		            deviceLinkSwitch.checked = printJobMultiInk.isDeviceLinkEnabled()
+
+		            // Sync dropdown selection from backend default
+		            const currentDL = printJobMultiInk.getDefaultDeviceLinkProfile()
+		            deviceLinkDropdown.currentIndex = -1
+		            for (let i = 0; i < deviceLinkModel.count; ++i) {
+		                if (deviceLinkModel.get(i).path === currentDL) {
+		                    deviceLinkDropdown.currentIndex = i
+		                    break
+		                }
+		            }
+		        } else {
+		            // Not multi-ink -> ensure it's off/empty
+		            deviceLinkSwitch.checked = false
+		            deviceLinkDropdown.currentIndex = -1
+		        }
+		    }
+
+		// --- Network printer path ---
+		} else if (hasPrinterSelected()) {
+		    const printers = printJobOutput.detectedPrinters
+		    if (printers && printers.length) {
+		        for (let i = 0; i < printers.length; ++i) {
+		            if (printers[i] === appState.selectedPrinter) {
+		                printerComboBox.currentIndex = i
+		                break
+		            }
+		        }
+		    }
+
+		    // OPTIONAL: if DeviceLink controls exist, hard-disable them on network tab
+		    if (typeof deviceLinkSwitch !== "undefined") {
+		        deviceLinkSwitch.checked = false
+		    }
+		    if (typeof deviceLinkDropdown !== "undefined") {
+		        deviceLinkDropdown.currentIndex = -1
+		    }
+		    if (typeof deviceLinkModel !== "undefined") {
+		        deviceLinkModel.clear()
+		    }
+		}
+	}
+
+    function doSave() {
+        if (!hasPrinterSelected()) return
+        toast.show("Printer setup complete: " + appState.selectedPrinter)
+        stackView.pop()
+    }
+
+	Component.onCompleted: {
+		printJobOutput.refreshDetectedPrinters()
+
+		// App defaults: X-36NC Photo Printer + 10-color MultiInk
+		if (!appState.selectedPrinter || appState.selectedPrinter.length === 0) {
+		    appState.selectedPrinter = "X-36NC (Photo Printer)"
+		    appState.usingSimulatedPrinter = true
+		    appState.usingMultiInkPrinter = true
+		    appState.multiInkInkMode = 10
+
+		    printJobMultiInk.setInkMode(10)
+		    printJobMultiInk.enableDefaultInputCMYK(true)
+		}
+
+		_syncingTabs = true
+		printerTabs.currentIndex = (appState.usingSimulatedPrinter ? 0 : 1)
+		_syncingTabs = false
+
+		Qt.callLater(syncUIFromAppState)
+	}
+
+    onVisibleChanged: {
+		if (visible) {
+		    _syncingTabs = true
+		    printerTabs.currentIndex = (appState.usingSimulatedPrinter ? 0 : 1)
+		    _syncingTabs = false
+
+		    Qt.callLater(syncUIFromAppState)
+		}
+    }
+
+    Rectangle {
+        id: headerBar
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 60
+        color: theme.surface
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
+
+            ThemedButton {
+                text: "Back"
+                theme: root.theme
+                padding: 12
+                font.pixelSize: 15
+                onClicked: root.stackView.pop()
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Label {
+                text: "Printer Setup"
+                color: theme.text
+                font.pixelSize: 20
+                font.weight: Font.Medium
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            Item { Layout.fillWidth: true }
+
+            ThemedButton {
+                text: "Save"
+                theme: root.theme
+                padding: 12
+                font.pixelSize: 15
+                enabled: hasPrinterSelected()
+                onClicked: root.doSave()
+            }
+        }
+    }
+
+    ScrollView {
+        id: scroll
+        anchors.top: headerBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 12
+        contentWidth: availableWidth
+        clip: true
+
+        ColumnLayout {
+            width: scroll.availableWidth
+            spacing: 14
             Layout.alignment: Qt.AlignHCenter
-        }
 
-		// Top-level mode switcher between simulated Nocai and network printers.
-        TabBar {
-            id: printerTabs
-            Layout.fillWidth: true
-            TabButton { text: "Nocai Printer" }
-            TabButton { text: "Network Printer" }
-        }
+            // =========================
+            // Printer Mode
+            // =========================
+            Pane {
+                Layout.fillWidth: true
+                padding: 12
 
-		// Container that switches content based on the selected tab.
-        StackLayout {
-            currentIndex: printerTabs.currentIndex
-            Layout.fillWidth: true
-    		Layout.fillHeight: true
+                background: Rectangle {
+                    color: theme.surface
+                    radius: 12
+                    border.width: 1
+                    border.color: theme.divider
+                }
 
-
-            // Nocai (simulated) printer setup.
-            Item {
-				Layout.fillWidth: true
-				Layout.fillHeight: true
-			    
-			    // Nocai selection and ICC defaults.
                 ColumnLayout {
-                    spacing: 10
-                    anchors.fill: parent
-                    Layout.alignment: Qt.AlignHCenter
-                    
-					Label {
-						text: "Please Select your Nocai Printer"
-						font.bold: true
-						Layout.alignment: Qt.AlignCenter
-					}
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(parent.width, 520)
+                    spacing: 12
 
-					// Choosing a Nocai model initializes assets and loads ICCs.
-                    ComboBox {
-                        id: nocaiPrinterComboBox
-						Layout.preferredWidth: 150
-						Layout.alignment: Qt.AlignCenter
-                        model: ["X-33"]
+                    Label {
+                        text: "Printer Mode"
+                        color: theme.text
+                        font.pixelSize: 18
+                        font.weight: Font.Medium
+                        Layout.alignment: Qt.AlignHCenter
+                    }
 
-                        onActivated: {
-                            const selected = nocaiPrinterComboBox.currentText
-                            if (selected.length > 0) {
-                                appState.selectedPrinter = selected
-                                appState.usingSimulatedPrinter = true
+                    Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
 
-             					 // Ensure masks and default ICC profiles exist on disk.
-                                printJobNocai.prepareNocaiAssets()
+                    TabBar {
+                        id: printerTabs
+                        Layout.fillWidth: true
+                        TabButton { text: "Nocai Printer" }
+                        TabButton { text: "Network Printer" }
 
-                                // Reload ICC profiles and select the default
-								iccProfileModel.clear()
-								const profiles = printJobNocai.getAvailableICCProfiles()
+                        onCurrentIndexChanged: {
+							if (root._syncingTabs) return
 
-								for (let i = 0; i < profiles.length; ++i) {
-									iccProfileModel.append(profiles[i])
-								}
+							if (currentIndex === 0) {
+								appState.usingSimulatedPrinter = true
+							} else {
+								appState.usingSimulatedPrinter = false
+								appState.usingMultiInkPrinter = false
+							}
+							Qt.callLater(root.syncUIFromAppState)
+                        }
+                    }
 
-						        // Sync Output ICC dropdown to backend default.
-								const currentDefault = printJobNocai.getDefaultOutputICCProfile()
+                    StackLayout {
+                        id: tabStack
+                        currentIndex: printerTabs.currentIndex
+                        Layout.fillWidth: true
 
-								for (let i = 0; i < iccProfileModel.count; ++i) {
-									if (iccProfileModel.get(i).path === currentDefault) {
-										Qt.callLater(() => {
-											iccProfileDropdown.currentIndex = i
-										})
-										break
+                        // --- Tab 0: Nocai (simulated) printers ---
+                        ColumnLayout {
+                            spacing: 10
+                            Layout.fillWidth: true
+
+                            Label {
+                                text: "Select your Nocai printer"
+                                color: theme.text
+                                font.weight: Font.Medium
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            ComboBox {
+                                id: nocaiPrinterComboBox
+                                Layout.fillWidth: true
+                                model: [
+                                    "X-33",
+                                    "X-36NC (Photo Printer)"
+                                ]
+
+                                onActivated: {
+                                    const selected = currentText
+                                    if (!selected || selected.length <= 0) return
+
+                                    appState.selectedPrinter = selected
+                                    appState.usingSimulatedPrinter = true
+
+                                    const isMultiInk = (selected === "X-36NC (Photo Printer)")
+                                    appState.usingMultiInkPrinter = isMultiInk
+
+									if (isMultiInk) {
+										const validModes = [4, 5, 6, 7, 8, 10]
+										if (validModes.indexOf(appState.multiInkInkMode) === -1) {
+											appState.multiInkInkMode = 10
+										}
+
+										for (let i = 0; i < inkLayoutCombo.model.count; ++i) {
+											const elem = inkLayoutCombo.model.get(i)
+											if (elem.value === appState.multiInkInkMode) {
+												inkLayoutCombo.currentIndex = i
+												break
+											}
+										}
+
+										printJobMultiInk.setInkMode(appState.multiInkInkMode)
+										printJobMultiInk.enableDefaultInputCMYK(true)
 									}
-								}
-								
-								
-								// Sync Input CMYK dropdown to backend default.
-								const currentInputCmyk = printJobNocai.getDefaultInputCMYKProfile()
-								
-								for (let i = 0; i < iccProfileModel.count; ++i) {
-									if (iccProfileModel.get(i).path === currentInputCmyk) {
-										Qt.callLater(() => { inputCmykDropdown.currentIndex = i })
-										break
-									}
-								}
-								
-								// Sync the toggle state from backend
-						        useInputCmykSwitch.checked = printJobNocai.checkDefaultInputCMYK()
 
-                                toast.show("Nocai printer selected: " + selected)
+                                    let backend
+									if (isMultiInk) {
+										backend = printJobMultiInk
+										printJobMultiInk.prepareAssets()
+									} else {
+										backend = printJobNocai
+										printJobNocai.prepareNocaiAssets()
+									}
+
+									iccProfileModel.clear()
+									const profiles = backend.getAvailableICCProfiles()
+									for (let i = 0; i < profiles.length; ++i)
+										iccProfileModel.append(profiles[i])
+
+									Qt.callLater(root.syncUIFromAppState)
+
+									toast.show((isMultiInk ? "Multi-ink " : "") + "Nocai printer selected: " + selected)
+                                }
+                            }
+
+                            Label {
+                                text: "Note: The Nocai engine generates PRN files only."
+                                color: theme.subtext
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+
+                            // Ink layout selection – only for X-36NC MultiInk printer
+                            ColumnLayout {
+                                visible: appState.usingSimulatedPrinter
+                                         && appState.selectedPrinter === "X-36NC (Photo Printer)"
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Label { text: "Ink Layout"; color: theme.text; font.bold: true }
+
+                                ComboBox {
+                                    id: inkLayoutCombo
+                                    Layout.fillWidth: true
+
+                                    model: ListModel {
+                                        ListElement { label: "4 – CMYK";                    value: 4  }
+                                        ListElement { label: "5 – CMYK+W";                  value: 5  }
+                                        ListElement { label: "6 – CMYK+Lc+Lm";              value: 6  }
+                                        ListElement { label: "7 – CMYK+Lc+Lm+W";            value: 7  }
+                                        ListElement { label: "8 – CMYK+Lc+Lm+Lk+LLk";       value: 8  }
+                                        ListElement { label: "10 – CMYK+Lc+Lm+Lk+LLk+W+V";  value: 10 }
+                                    }
+                                    textRole: "label"
+
+									onActivated: {
+										const elem = model.get(currentIndex)
+										const mode = elem.value
+										appState.multiInkInkMode = mode
+										printJobMultiInk.setInkMode(mode)
+
+										root.applyResolvedOutputProfileToBackend()
+										Qt.callLater(root.syncUIFromAppState)
+
+										toast.show("Multi-ink layout set to " + elem.label)
+									}
+                                }
+                            }
+                        }
+
+                        // --- Tab 1: Network printers ---
+                        ColumnLayout {
+                            spacing: 10
+                            Layout.fillWidth: true
+
+                            Label {
+                                text: "Select a network printer"
+                                color: theme.text
+                                font.weight: Font.Medium
+                            }
+
+                            ComboBox {
+                                id: printerComboBox
+                                Layout.fillWidth: true
+                                model: printJobOutput.detectedPrinters
+
+                                onActivated: {
+                                    const name = currentText
+                                    if (printJobOutput.loadPrinter(name)) {
+                                        appState.selectedPrinter = name
+                                        appState.usingSimulatedPrinter = false
+                                        appState.usingMultiInkPrinter = false
+
+                                        // Warm the backend capability lists
+                                        printJobOutput.supportedResolutions()
+                                        printJobOutput.supportedMediaSizes()
+                                        printJobOutput.supportedDuplexModes()
+                                        printJobOutput.supportedColorModes()
+
+                                        toast.show("Network printer loaded: " + name)
+                                    } else {
+                                        toast.show("Failed to load printer: " + name)
+                                    }
+                                }
+                            }
+
+                            ThemedButton {
+                                text: "Refresh List"
+                                theme: root.theme
+                                padding: 12
+                                font.pixelSize: 15
+                                onClicked: printJobOutput.refreshDetectedPrinters()
                             }
                         }
                     }
-                    
-					// Reminder for simulated mode behavior.
-                	ColumnLayout {
-	                    spacing: 10
-	                    Layout.fillWidth: true
-	                    Layout.alignment: Qt.AlignHCenter
+                }
+            }
+            
+            // DeviceLink controls (MultiInk only)
+			Pane {
+				Layout.fillWidth: true
+				padding: 12
+				visible: appState.usingSimulatedPrinter && appState.usingMultiInkPrinter
 
-	                    Label {
-	                        text: "** The Nocai engine generates PRN files only **"
-							Layout.alignment: Qt.AlignCenter
-                    	}
-                	}
+				background: Rectangle {
+					color: theme.surface
+					radius: 12
+					border.width: 1
+					border.color: theme.divider
+				}
 
-					// Output ICC selection and upload.
-					ColumnLayout {
+				ColumnLayout {
+					anchors.horizontalCenter: parent.horizontalCenter
+					width: Math.min(parent.width, 520)
+					spacing: 10
+
+					Label {
+						text: "DeviceLink (Overrides ICC)"
+						color: theme.text
+						font.pixelSize: 16
+						font.weight: Font.Medium
+						Layout.alignment: Qt.AlignHCenter
+					}
+
+					Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
+
+					RowLayout {
+						Layout.fillWidth: true
 						spacing: 10
-		                Layout.fillWidth: true
-		                Layout.alignment: Qt.AlignHCenter
+
+						Label { text: "Enable DeviceLink"; color: theme.text; Layout.fillWidth: true }
+
+						Switch {
+						    id: deviceLinkSwitch
+						    checked: false
+						    onToggled: {
+						        printJobMultiInk.enableDeviceLink(checked)
+						        toast.show(checked ? "DeviceLink enabled (ICC bypassed)" : "DeviceLink disabled (ICC active)")
+						    }
+						}
+					}
+
+					RowLayout {
+						Layout.fillWidth: true
+						spacing: 10
+						enabled: deviceLinkSwitch.checked
+
+						ComboBox {
+						    id: deviceLinkDropdown
+						    Layout.fillWidth: true
+						    model: deviceLinkModel
+						    textRole: "name"
+						    displayText: currentIndex >= 0 ? currentText : "(none)"
+
+						    onActivated: {
+						        if (deviceLinkModel.count <= 0) return
+						        const selected = deviceLinkModel.get(currentIndex)
+						        printJobMultiInk.setDefaultDeviceLinkProfile(selected.path)
+						    }
+						}
+
+						ThemedButton {
+						    text: "Upload"
+						    theme: root.theme
+						    onClicked: {
+						        iccDialogTarget = "deviceLink"
+						        iccUploadDialog.open()
+						    }
+						}
+					}
+				}
+			}
+
+
+            // =========================
+            // ICC Profiles (Nocai only)
+            // =========================
+            Pane {
+                Layout.fillWidth: true
+                padding: 16
+                enabled: appState.usingSimulatedPrinter
+
+                background: Rectangle {
+                    color: theme.surface
+                    radius: 12
+                    border.width: 1
+                    border.color: theme.divider
+					opacity: appState.usingSimulatedPrinter ? 1.0 : 0.6
+                }
+
+                ColumnLayout {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(parent.width, 520)
+                    spacing: 12
+
+                    Label {
+                        text: "ICC Profiles (Nocai)"
+                        color: theme.text
+                        font.pixelSize: 18
+                        font.weight: Font.Medium
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
+
+                    Label { text: "Default Output ICC Profile"; color: theme.text; font.bold: true }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ComboBox {
+                            id: iccProfileDropdown
+                            Layout.fillWidth: true
+                            model: iccProfileModel
+                            textRole: "name"
+                            displayText: currentIndex >= 0 ? currentText : "(none)"
+
+							onActivated: {
+								if (!root.appState.usingSimulatedPrinter) return
+								if (iccProfileModel.count <= 0) return
+								if (!root.appState.selectedPrinter || root.appState.selectedPrinter.length <= 0) return
+
+								const selected = iccProfileModel.get(currentIndex)
+								const backend = root.activeBackend()
+								if (backend) backend.setDefaultOutputICCProfile(selected.path)
+
+								const inkMode = root.currentOutputProfileInkMode()
+								const family = colorManager.outputProfileFamilyForInkMode(inkMode)
+								colorManager.setPrinterFamilyOutputProfile(root.appState.selectedPrinter, family, selected.path)
+							}
+                        }
+
+                        ThemedButton {
+                            text: "Upload"
+                            theme: root.theme
+                            onClicked: { iccDialogTarget = "output"; iccUploadDialog.open() }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Label { text: "Use Default Input CMYK"; color: theme.text; Layout.preferredWidth: 180 }
+
+                        Switch {
+                            id: useInputCmykSwitch
+                            checked: root.activeBackend() ? root.activeBackend().checkDefaultInputCMYK() : false
+                            onToggled: {
+                                const backend = root.activeBackend()
+                                if (backend) backend.enableDefaultInputCMYK(checked)
+                            }
+                        }
+                    }
+
+                    Label { text: "Default Input CMYK Profile"; color: theme.text; font.bold: true }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ComboBox {
+                            id: inputCmykDropdown
+                            Layout.fillWidth: true
+                            model: iccProfileModel
+                            textRole: "name"
+                            displayText: currentIndex >= 0 ? currentText : "(none)"
+                            enabled: useInputCmykSwitch.checked
+
+                            onActivated: {
+                                if (!enabled) return
+                                if (iccProfileModel.count <= 0) return
+                                const selected = iccProfileModel.get(currentIndex)
+                                const backend = root.activeBackend()
+                                if (backend) backend.setDefaultInputCMYKProfile(selected.path)
+                            }
+                        }
+
+                        ThemedButton {
+                            text: "Upload"
+                            theme: root.theme
+                            enabled: useInputCmykSwitch.checked
+                            onClicked: { iccDialogTarget = "inputCMYK"; iccUploadDialog.open() }
+                        }
+                    }
+                    
+                    Label {
+						visible: appState.usingMultiInkPrinter
+						text: "Linearization XML"
+						color: theme.text
+						font.bold: true
+					}
+
+					RowLayout {
+						visible: appState.usingMultiInkPrinter
+						Layout.fillWidth: true
+						spacing: 10
 
 						Label {
-							text: " Select Default Output ICC Profile"
-							font.bold: true
-							Layout.alignment: Qt.AlignCenter
+							Layout.fillWidth: true
+							text: {
+								const p = root.resolvedLinearizationForCurrentSelection()
+								return (p && p.length > 0) ? p : "(none)"
+							}
+							color: theme.subtext
+							wrapMode: Text.WrapAnywhere
 						}
 
-						RowLayout {
-							spacing: 10
-							Layout.alignment: Qt.AlignHCenter
-							
-							ComboBox {
-								id: iccProfileDropdown
-								Layout.alignment: Qt.AlignVCenter
-								Layout.preferredWidth: 175
-								model: iccProfileModel
-								textRole: "name"
+						ThemedButton {
+							text: "Load"
+							theme: root.theme
+							onClicked: linearizationUploadDialog.open()
+						}
 
-								onCurrentIndexChanged: {
-									if (iccProfileModel.count > 0 && iccProfileDropdown.currentIndex >= 0) {
-										let selected = iccProfileModel.get(iccProfileDropdown.currentIndex)
-										printJobNocai.setDefaultOutputICCProfile(selected.path)
-									}
+						ThemedButton {
+							text: "Clear"
+							theme: root.theme
+							enabled: root.resolvedLinearizationForCurrentSelection().length > 0
+							onClicked: {
+								if (!root.appState.selectedPrinter || root.appState.selectedPrinter.length <= 0)
+									return
+
+								const family = root.currentFamilyKey()
+								colorManager.setPrinterFamilyLinearizationPath(root.appState.selectedPrinter, family, "")
+								Qt.callLater(root.syncUIFromAppState)
+								toast.show("Printer linearization override cleared.")
+							}
+						}
+					}
+
+                    FileDialog {
+                        id: iccUploadDialog
+						title: (iccDialogTarget === "deviceLink") ? "Select DeviceLink ICC" : "Select ICC Profile"
+                        nameFilters: ["ICC Profiles (*.icc *.icm)", "All Files (*)"]
+                        fileMode: FileDialog.OpenFile
+
+                        onAccepted: {
+							const path = normalizePath(iccUploadDialog.file.toString())
+							const name = path.split("/").pop()
+							const backend = root.activeBackend()
+
+							if (iccDialogTarget === "deviceLink") {
+								deviceLinkModel.append({ name: name, path: path })
+								printJobMultiInk.addDeviceLinkProfile(name, path)
+								deviceLinkDropdown.currentIndex = deviceLinkModel.count - 1
+								printJobMultiInk.setDefaultDeviceLinkProfile(path)
+								toast.show("DeviceLink added: " + name)
+								return
+							}
+
+							iccProfileModel.append({ name: name, path: path })
+							if (backend) backend.addICCProfile(name, path)
+
+							if (iccDialogTarget === "output") {
+								iccProfileDropdown.currentIndex = iccProfileModel.count - 1
+								if (backend) backend.setDefaultOutputICCProfile(path)
+
+								if (root.appState.selectedPrinter && root.appState.selectedPrinter.length > 0) {
+									const inkMode = root.currentOutputProfileInkMode()
+									const family = colorManager.outputProfileFamilyForInkMode(inkMode)
+									colorManager.setPrinterFamilyOutputProfile(root.appState.selectedPrinter, family, path)
 								}
+							} else if (iccDialogTarget === "inputCMYK") {
+								inputCmykDropdown.currentIndex = iccProfileModel.count - 1
+								if (backend) backend.setDefaultInputCMYKProfile(path)
+								colorManager.defaultInputProfile = path
 							}
 
-							// Output ICC upload button
-							Button {
-								text: "Upload ICC Profile"
-								Layout.alignment: Qt.AlignVCenter
-								onClicked: {
-									iccDialogTarget = "output"
-									iccUploadDialog.open()
-								}
-							}
+							toast.show("ICC added: " + name)
 						}
-						
-						// Input CMYK selection, toggle, and upload.
-						Label {
-							text: "Select Default Input CMYK Profile"
-							font.bold: true
-							Layout.alignment: Qt.AlignCenter
+                    }
+                    
+                    FileDialog {
+						id: linearizationUploadDialog
+						title: "Select Linearization XML"
+						nameFilters: ["Linearization XML (*.xml)", "All Files (*)"]
+						fileMode: FileDialog.OpenFile
+
+						onAccepted: {
+							const path = normalizePath(linearizationUploadDialog.file.toString())
+
+							if (!root.appState.selectedPrinter || root.appState.selectedPrinter.length <= 0)
+								return
+
+							const family = root.currentFamilyKey()
+							colorManager.setPrinterFamilyLinearizationPath(root.appState.selectedPrinter, family, path)
+
+							Qt.callLater(root.syncUIFromAppState)
+							toast.show("Printer linearization override updated.")
 						}
-
-						RowLayout {
-							spacing: 8
-							Layout.alignment: Qt.AlignHCenter
-
-							Label {
-								text: "Use Default Input CMYK"
-								Layout.alignment: Qt.AlignVCenter
-							}
-							Switch {
-								id: useInputCmykSwitch
-								checked: printJobNocai.checkDefaultInputCMYK()
-								onToggled: printJobNocai.enableDefaultInputCMYK(checked)
-							}
-						}
-
-						RowLayout {
-							spacing: 10
-							Layout.alignment: Qt.AlignHCenter
-
-							ComboBox {
-								id: inputCmykDropdown
-								Layout.alignment: Qt.AlignVCenter
-								Layout.preferredWidth: 175
-								model: iccProfileModel
-								textRole: "name"
-								enabled: useInputCmykSwitch.checked
-
-								onCurrentIndexChanged: {
-									if (enabled && iccProfileModel.count > 0 && inputCmykDropdown.currentIndex >= 0) {
-										const selected = iccProfileModel.get(inputCmykDropdown.currentIndex)
-										printJobNocai.setDefaultInputCMYKProfile(selected.path)
-									}
-								}
-							}
-							
-							// Input CMYK upload button
-							Button {
-								text: "Upload CMYK Profile"
-								Layout.alignment: Qt.AlignVCenter
-								enabled: useInputCmykSwitch.checked
-								onClicked: {
-									iccDialogTarget = "inputCMYK"
-									iccUploadDialog.open()
-								}
-							}
-						}
-
-
-						// Shared file picker for both Output and Input CMYK uploads.
-						FileDialog {
-							id: iccUploadDialog
-							title: "Select ICC Profile"
-							nameFilters: ["ICC Profiles (*.icc *.icm)", "All Files (*)"]
-							fileMode: FileDialog.OpenFile
-
-							onAccepted: {
-								let url = iccUploadDialog.file.toString()
-								let path = url.startsWith("file://") ? url.slice(7) : url
-								let name = path.split("/").pop()
-
-								// Update backend registry
-								iccProfileModel.append({ name: name, path: path })
-								printJobNocai.addICCProfile(name, path)
-
-								if (iccDialogTarget === "output") {
-									iccProfileDropdown.currentIndex = iccProfileModel.count - 1
-									printJobNocai.setDefaultOutputICCProfile(path)
-								} else {
-									inputCmykDropdown.currentIndex = iccProfileModel.count - 1
-									printJobNocai.setDefaultInputCMYKProfile(path)
-								}
-							}
-						}
-                	}
-            	}
+					}
+                }
             }
 
+            // =========================
+            // Selected Printer Details
+            // =========================
+            Pane {
+                Layout.fillWidth: true
+                padding: 16
+                visible: hasPrinterSelected()
 
-	        // Network printer discovery and selection.
-	        Item {
-				Layout.fillWidth: true
-				Layout.fillHeight: true
-	    
-	            ColumnLayout {
-	                Layout.alignment: Qt.AlignHCenter
-	                spacing: 10
-	                anchors.fill: parent
+                background: Rectangle {
+                    color: theme.surface
+                    radius: 12
+                    border.width: 1
+                    border.color: theme.divider
+                }
 
-					// Choose a discovered printer and load its PPD/capabilities.
-	                ComboBox {
-	                    id: printerComboBox
-	                    Layout.fillWidth: true
-	                    model: printJobOutput.detectedPrinters
+                ColumnLayout {
+					anchors.horizontalCenter: parent.horizontalCenter
+					width: Math.min(parent.width, 640)
+					spacing: 10
 
-	                    onActivated: {
-	                        const name = printerComboBox.currentText
-	                        if (printJobOutput.loadPrinter(name)) {
-	                            appState.selectedPrinter = name
-	                            appState.usingSimulatedPrinter = false
+                    Label {
+                        text: "Selected Printer Details"
+                        color: theme.text
+                        font.pixelSize: 18
+                        font.weight: Font.Medium
+                        Layout.alignment: Qt.AlignHCenter
+                    }
 
-	                            printJobOutput.supportedResolutions()
-	                            printJobOutput.supportedMediaSizes()
-	                            printJobOutput.supportedDuplexModes()
-	                            printJobOutput.supportedColorModes()
+                    Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
 
-	                            toast.show("Network printer loaded: " + name)
-	                        } else {
-	                            toast.show("Failed to load printer: " + name)
-	                        }
-	                    }
-	                }
+                    Label { text: "Name: " + appState.selectedPrinter; color: theme.text }
+                    Label { text: "Nocai Printer: " + (appState.usingSimulatedPrinter ? "Yes" : "No"); color: theme.text }
 
-	                Button {
-	                    text: "Refresh List"
-	                    Layout.alignment: Qt.AlignHCenter
-	                    onClicked: printJobOutput.refreshDetectedPrinters()
-	                }
-            	}
-        	}
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: theme.text
+                        text: "Supported Resolutions: " +
+                              (appState.usingSimulatedPrinter
+                               ? (nocaiPrinterCapabilities[appState.selectedPrinter] && nocaiPrinterCapabilities[appState.selectedPrinter].resolutions
+                                  ? nocaiPrinterCapabilities[appState.selectedPrinter].resolutions.join(", ")
+                                  : "(unknown)")
+                               : printJobOutput.supportedResolutions().join(", "))
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: theme.text
+                        text: "Media Sizes: " +
+                              (appState.usingSimulatedPrinter
+                               ? (nocaiPrinterCapabilities[appState.selectedPrinter] && nocaiPrinterCapabilities[appState.selectedPrinter].mediaSizes
+                                  ? nocaiPrinterCapabilities[appState.selectedPrinter].mediaSizes.join(", ")
+                                  : "(unknown)")
+                               : printJobOutput.supportedMediaSizes().join(", "))
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: theme.text
+                        text: "Duplex Modes: " +
+                              (appState.usingSimulatedPrinter
+                               ? (nocaiPrinterCapabilities[appState.selectedPrinter] && nocaiPrinterCapabilities[appState.selectedPrinter].duplexModes
+                                  ? nocaiPrinterCapabilities[appState.selectedPrinter].duplexModes.join(", ")
+                                  : "(unknown)")
+                               : printJobOutput.supportedDuplexModes().join(", "))
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: theme.text
+                        text: "Color Modes: " +
+                              (appState.usingSimulatedPrinter
+                               ? (nocaiPrinterCapabilities[appState.selectedPrinter] && nocaiPrinterCapabilities[appState.selectedPrinter].colorModes
+                                  ? nocaiPrinterCapabilities[appState.selectedPrinter].colorModes.join(", ")
+                                  : "(unknown)")
+                               : printJobOutput.supportedColorModes().join(", "))
+                    }
+
+                    Label {
+                        visible: appState.usingSimulatedPrinter
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: theme.subtext
+                        text: appState.usingMultiInkPrinter
+                              ? ("Ink Layout: " + appState.multiInkInkMode + " channels")
+                              : "Ink Layout: CMYK / CMYK+W via Nocai engine"
+                    }
+                }
+            }
+
+            Item { height: 6 }
         }
+    }
 
-        // Summary of the chosen printer and its capabilities.
-	    GroupBox {
-	        visible: appState.selectedPrinter.length > 0
-	        Layout.fillWidth: true
-
-	        ColumnLayout {
-	            spacing: 6
-	            Layout.fillWidth: true
-
-				Label {
-					text: "Selected Printer Details"
-					font.bold: true
-					font.pixelSize: 16
-					Layout.alignment: Qt.AlignLeft
-				}
-				
-	            Label { text: "Name: " + appState.selectedPrinter }
-	            Label { text: "Nocai Printer: " + (appState.usingSimulatedPrinter ? "Yes" : "No") }
-
-	            // Capabilities based on printer type
-	            Label {
-	                Layout.preferredWidth: parent.width
-	                Layout.maximumWidth: 480
-	                text: "Supported Resolutions: " +
-	                    (appState.usingSimulatedPrinter
-	                     ? nocaiPrinterCapabilities[appState.selectedPrinter]?.resolutions?.join(", ")
-	                     : printJobOutput.supportedResolutions().join(", "))
-	            }
-	            Label {
-	                Layout.preferredWidth: parent.width
-	                Layout.maximumWidth: 480
-	                text: "Media Sizes: " +
-	                    (appState.usingSimulatedPrinter
-	                     ? nocaiPrinterCapabilities[appState.selectedPrinter]?.mediaSizes?.join(", ")
-	                     : printJobOutput.supportedMediaSizes().join(", "))
-	            }
-	            Label {
-	                Layout.preferredWidth: parent.width
-	                Layout.maximumWidth: 480
-	                text: "Duplex Modes: " +
-	                    (appState.usingSimulatedPrinter
-	                     ? nocaiPrinterCapabilities[appState.selectedPrinter]?.duplexModes?.join(", ")
-	                     : printJobOutput.supportedDuplexModes().join(", "))
-	            }
-	            Label {
-	                Layout.preferredWidth: parent.width
-	                Layout.maximumWidth: 480
-	                text: "Color Modes: " +
-	                    (appState.usingSimulatedPrinter
-	                     ? nocaiPrinterCapabilities[appState.selectedPrinter]?.colorModes?.join(", ")
-	                     : printJobOutput.supportedColorModes().join(", "))
-	            }
-	        }
-	    }
-
-        // Finalize or exit without changes.
-	    RowLayout {
-	        Layout.alignment: Qt.AlignHCenter
-	        spacing: 20
-
-	        Button {
-	            text: "Confirm Setup"
-	            enabled: appState.selectedPrinter.length > 0
-	            onClicked: {
-	                toast.show("Printer setup complete: " + appState.selectedPrinter)
-	                stackView.pop()
-	            }
-	        }
-
-	        Button {
-	            text: "Cancel"
-	            onClicked: stackView.pop()
-	        }
-	    }
-	}
-	
-	// Transient notifications for actions and errors.
-	Toast {
-	    id: toast
-	    parent: Overlay.overlay
-	}
+    Toast {
+        id: toast
+        parent: Overlay.overlay
+    }
 }
+

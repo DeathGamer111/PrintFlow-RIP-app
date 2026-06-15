@@ -23,17 +23,10 @@ public:
         WhiteStrategyRole,
         VarnishTypeRole,
         ColorProfileRole,
-		MinInkThresholdRole,
-		SmallDotThresholdRole,
-		MedDotThresholdRole,
-		EnablePromotionRole,
-		FloorRangeCMYRole,
-		FloorMaxCMYRole,
-		FloorRangeKRole,
-		FloorMaxKRole,
-		EnableDotSwapRole,
-		CreatedAtRole
-	};
+	CreatedAtRole,
+	WhitePlatePathRole,
+	VarnishPlatePathRole
+    };
 
     PrintJobModel(QObject *parent = nullptr);
 

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.platform
+import "."
 
 
 /* ImageEditorView.qml
@@ -14,26 +15,30 @@ import Qt.labs.platform
 Page {
     id: editorPage
     required property string imagePath
+    required property Theme theme
+
+    background: Rectangle { color: theme.bg }
     
+    readonly property int cardWidthNarrow: 520
+	readonly property int cardWidthMedium: 640
+	readonly property int cardWidthWide: 760
+
     // Temp working copy path (same extension as source)
     property string tempPath: {
-		let parts = imagePath.split(".")
-		let ext = parts.length > 1 ? parts[parts.length - 1] : "png"
-		return imagePath + ".edit_tmp." + ext
+        let parts = imagePath.split(".")
+        let ext = parts.length > 1 ? parts[parts.length - 1] : "png"
+        return imagePath + ".edit_tmp." + ext
     }
 
-
-	// Edit/session state
+    // Edit/session state
     property bool isDirty: true
     property string currentTool: "none"
-
 
     // Crop tool state (editor units / preview overlay)
     property real cropX: 50
     property real cropY: 50
     property real cropW: 100
     property real cropH: 100
-
 
     // Enhancement sliders (UI-side)
     property real brightness: 0
@@ -42,23 +47,39 @@ Page {
     property real saturation: 0
     property real sharpness: 0
     property real gamma: 0
-    
-    
+
     // Sync resize spin boxes with actual image size
     function refreshImageSize() {
-	    resizeWidthSpin.value = imageEditor.getImageWidth()
-	    resizeHeightSpin.value = imageEditor.getImageHeight()
-	}
-	
-	
-	// Initialize editor: stage temp copy, then load it for live edits
+        resizeWidthSpin.value = imageEditor.getImageWidth()
+        resizeHeightSpin.value = imageEditor.getImageHeight()
+    }
+
+    function doSave() {
+        if (imageEditor.saveImage(imagePath)) {
+            isDirty = false
+            toast.show("Image saved.")
+        } else {
+            toast.show("Save failed.")
+        }
+    }
+
+    function doBack() {
+        if (isDirty) {
+            toast.show("Unsaved changes. Press Back again to discard.")
+            isDirty = false
+        } else {
+            cleanupAndExit()
+        }
+    }
+
+    // Initialize editor: stage temp copy, then load it for live edits
     Component.onCompleted: {
         if (imageEditor.loadImage(imagePath)) {
             imageEditor.saveImage(tempPath)
-            
+
             if (imageEditor.loadImage(tempPath)) {
                 refreshImage()
-				refreshImageSize()
+                refreshImageSize()
             } else {
                 console.warn("Failed to load temp image for editing")
             }
@@ -67,22 +88,80 @@ Page {
         }
     }
 
+    // ---------- Header (Back / Title / Save) ----------
+    Rectangle {
+        id: headerBar
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 60
+        color: theme.surface
 
-    // ============================ Main Layout ============================
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
+
+            ThemedButton {
+                text: "Back"
+                theme: editorPage.theme
+                padding: 12
+                font.pixelSize: 15
+                onClicked: editorPage.doBack()
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Label {
+                text: "Edit Image"
+                color: theme.text
+                font.pixelSize: 20
+                font.weight: Font.Medium
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            Item { Layout.fillWidth: true }
+
+            ThemedButton {
+                text: "Save"
+                theme: editorPage.theme
+                padding: 12
+                font.pixelSize: 15
+                onClicked: editorPage.doSave()
+            }
+        }
+    }
+
+    // ---------- Main content ----------
     ColumnLayout {
-        anchors.fill: parent
+        anchors.top: headerBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: bottomBar.top
+        anchors.margins: 12
         spacing: 12
 
-		// Preview pane with optional crop overlay
+        // Preview pane with optional crop overlay
         Pane {
             Layout.fillWidth: true
             Layout.preferredHeight: 260
+            padding: 12
+
+            background: Rectangle {
+                color: theme.surface
+                radius: 12
+                border.width: 1
+                border.color: theme.divider
+            }
 
             Rectangle {
                 id: imageContainer
                 anchors.fill: parent
-                color: "#eeeeee"
-                border.color: "#999"
+                color: theme.surface2
+                border.color: theme.divider
+                radius: 10
                 clip: true
 
                 Image {
@@ -100,334 +179,478 @@ Page {
                     width: cropW
                     height: cropH
                     color: "transparent"
-                    border.color: "red"
+                    border.color: theme.danger
                     border.width: 2
                     visible: currentTool === "crop"
                 }
             }
         }
 
-		
-		// Tools panel (scrollable): Resize/View, Transform, Enhance, Effects
+        // Tools panel (scrollable): View, Transform, Enhance, Effects
         ScrollView {
             id: scrollView
             Layout.fillWidth: true
             Layout.fillHeight: true
+            clip: true
+
             ScrollBar.vertical.interactive: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-            Component.onCompleted: {
-                contentItem.flickableDirection = Flickable.VerticalFlick
-            }
+            Component.onCompleted: contentItem.flickableDirection = Flickable.VerticalFlick
 
-            Column {
-                width: parent.width
-                spacing: 0
-                anchors.horizontalCenter: parent.horizontalCenter
+            ColumnLayout {
+                width: scrollView.availableWidth
+                spacing: 14
+                Layout.alignment: Qt.AlignHCenter
 
-				// View tools (original/half/double + explicit WxH)
+                // =========================
+                // View
+                // =========================
                 Pane {
-                    width: Math.min(parent.width, 450)
-                    padding: 20
+                    Layout.fillWidth: true
+                    padding: 16
+
+                    background: Rectangle {
+                        color: theme.surface
+                        radius: 12
+                        border.width: 1
+                        border.color: theme.divider
+                    }
 
                     ColumnLayout {
-                        id: toolColumn
-                        width: parent.width
-                        spacing: 20
+						anchors.horizontalCenter: parent.horizontalCenter
+						width: Math.min(parent.width, editorPage.cardWidthNarrow)
+						spacing: 12
 
-                        // === View Tools ===
-                        GroupBox {
-                            title: "View"
-                            Layout.fillWidth: true
-
-							ColumnLayout {
-								spacing: 12
-								Layout.fillWidth: true
-								anchors.horizontalCenter: parent.horizontalCenter
-
-								RowLayout {
-									spacing: 10
-									Layout.fillWidth: true
-									Layout.alignment: Qt.AlignHCenter
-
-									Button { 
-										text: "Original Size"
-										onClicked: {
-											apply("resizeOriginal")
-											refreshImageSize()
-										} 
-									}
-									Button {
-										text: "Half Size"
-										onClicked: {
-											apply("resizeHalf") 
-											refreshImageSize()
-										}
-									}
-									Button {
-										text: "Double Size"
-										onClicked: {
-											apply("resizeDouble")
-											refreshImageSize()
-										}
-									}
-								}
-
-								Label { 
-									text: "Resize (Width × Height)" 
-									Layout.alignment: Qt.AlignHCenter
-								}
-
-								RowLayout {
-									spacing: 8
-									Layout.fillWidth: true
-									Layout.alignment: Qt.AlignHCenter
-
-									SpinBox {
-										id: resizeWidthSpin
-										from: 1; to: 10000
-										value: 100
-										editable: true
-										validator: IntValidator { bottom: 1 }
-									}
-
-									Label { text: "×" }
-
-									SpinBox {
-										id: resizeHeightSpin
-										from: 1; to: 10000
-										value: 100
-										editable: true
-										validator: IntValidator { bottom: 1 }
-									}
-
-									Button {
-										text: "Resize"
-										onClicked: apply("resize", {
-											x: resizeWidthSpin.value,
-											y: resizeHeightSpin.value
-										})
-									}
-								}
-							}
+						Label {
+							text: "View"
+							color: theme.text
+							font.pixelSize: 18
+							font.weight: Font.Medium
+							Layout.alignment: Qt.AlignHCenter
 						}
 
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
 
-                        // Basic transforms (crop/flip/rotate)
-                        GroupBox {
-                            title: "Transform"
-                            Layout.fillWidth: true
-                            GridLayout {
-                                columns: 4
-                                anchors.horizontalCenter: parent.horizontalCenter
+						RowLayout {
+							Layout.fillWidth: true
+							spacing: 10
 
-                                Button { text: "Crop"; onClicked: apply("crop", { x: cropX, y: cropY, w: cropW, h: cropH }) }
-                                Button { text: "Flip H"; onClicked: apply("flip", "horizontal") }
-                                Button { text: "Flip V"; onClicked: apply("flip", "vertical") }
-                                Button { text: "Rotate"; onClicked: apply("rotate", 90) }
-                            }
+							ThemedButton { text: "Original Size"; theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeOriginal"); refreshImageSize() } }
+							ThemedButton { text: "Half Size";     theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeHalf"); refreshImageSize() } }
+							ThemedButton { text: "Double Size";   theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeDouble"); refreshImageSize() } }
+						}
+
+						Label {
+							text: "Resize (Width × Height)"
+							color: theme.subtext
+							Layout.alignment: Qt.AlignHCenter
+						}
+
+						// Make resize row responsive (can wrap to two rows if narrow)
+						GridLayout {
+							Layout.fillWidth: true
+							columns: (width < 520 ? 2 : 4)
+							columnSpacing: 8
+							rowSpacing: 8
+
+							SpinBox {
+								id: resizeWidthSpin
+								Layout.fillWidth: true
+								from: 1; to: 10000
+								value: 100
+								editable: true
+								validator: IntValidator { bottom: 1 }
+							}
+
+							Label {
+								text: "×"
+								color: theme.text
+								horizontalAlignment: Text.AlignHCenter
+								Layout.alignment: Qt.AlignVCenter
+							}
+
+							SpinBox {
+								id: resizeHeightSpin
+								Layout.fillWidth: true
+								from: 1; to: 10000
+								value: 100
+								editable: true
+								validator: IntValidator { bottom: 1 }
+							}
+
+							ThemedButton {
+								text: "Resize"
+								theme: editorPage.theme
+								Layout.fillWidth: true
+								Layout.columnSpan: (parent.columns === 2 ? 2 : 1)   // if 2-col layout, put button on its own row
+								onClicked: apply("resize", { x: resizeWidthSpin.value, y: resizeHeightSpin.value })
+							}
+						}
+					}
+                }
+
+                // =========================
+                // Transform
+                // =========================
+                Pane {
+                    Layout.fillWidth: true
+                    padding: 16
+
+                    background: Rectangle {
+                        color: theme.surface
+                        radius: 12
+                        border.width: 1
+                        border.color: theme.divider
+                    }
+
+					ColumnLayout {
+						anchors.horizontalCenter: parent.horizontalCenter
+						width: Math.min(parent.width, editorPage.cardWidthNarrow)
+						spacing: 12
+
+						Label {
+							text: "Transform"
+							color: theme.text
+							font.pixelSize: 18
+							font.weight: Font.Medium
+							Layout.alignment: Qt.AlignHCenter
+						}
+
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
+
+						GridLayout {
+							id: transformGrid
+							Layout.fillWidth: true
+							Layout.alignment: Qt.AlignHCenter
+							rowSpacing: 10
+							columnSpacing: 10
+
+							// 4 buttons total
+							// 1 row if wide enough, otherwise 2×2
+							columns: (parent.width >= 460 ? 4 : 2)
+
+							// Match Effects sizing
+							readonly property int btnW: Math.floor(
+								(parent.width - (columns - 1) * columnSpacing) / columns
+							)
+							readonly property int btnH: 40
+
+							ThemedButton {
+								text: "Flip H"
+								theme: editorPage.theme
+								Layout.preferredWidth: transformGrid.btnW
+								Layout.preferredHeight: transformGrid.btnH
+								onClicked: apply("flip", "horizontal")
+							}
+
+							ThemedButton {
+								text: "Flip V"
+								theme: editorPage.theme
+								Layout.preferredWidth: transformGrid.btnW
+								Layout.preferredHeight: transformGrid.btnH
+								onClicked: apply("flip", "vertical")
+							}
+
+							ThemedButton {
+								text: "Rotate"
+								theme: editorPage.theme
+								Layout.preferredWidth: transformGrid.btnW
+								Layout.preferredHeight: transformGrid.btnH
+								onClicked: apply("rotate", 90)
+							}
+							
+							ThemedButton {
+								text: "Crop"
+								theme: editorPage.theme
+								Layout.preferredWidth: transformGrid.btnW
+								Layout.preferredHeight: transformGrid.btnH
+								onClicked: apply("crop", { x: cropX, y: cropY, w: cropW, h: cropH })
+							}
+						}
+					}
+                }
+
+                // =========================
+                // Enhance
+                // =========================
+                Pane {
+                    Layout.fillWidth: true
+                    padding: 16
+
+                    background: Rectangle {
+                        color: theme.surface
+                        radius: 12
+                        border.width: 1
+                        border.color: theme.divider
+                    }
+
+                    ColumnLayout {
+						anchors.horizontalCenter: parent.horizontalCenter
+						width: Math.min(parent.width, editorPage.cardWidthMedium)
+						spacing: 12
+
+                        Label {
+                            text: "Enhance"
+                            color: theme.text
+                            font.pixelSize: 18
+                            font.weight: Font.Medium
+                            Layout.alignment: Qt.AlignHCenter
                         }
 
-						// Enhancements (brightness/contrast/hue/sat/sharpness/gamma)
-                        GroupBox {
-                            title: "Enhance"
+                        Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
+
+                        // Brightness
+                        RowLayout {
                             Layout.fillWidth: true
-
-                            ColumnLayout {
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                RowLayout {
-                                    spacing: 10
-                                    Label { text: "Brightness" }
-                                    Slider {
-                                        id: brightnessSlider
-                                        from: -100; to: 100
-                                        value: brightness
-                                        Layout.fillWidth: true
-                                        onValueChanged: {
-                                            brightness = value
-                                            apply("brightness", { brightness })
-                                        }
-                                    }
-                                    Label { text: brightness.toFixed(0) }
-                                }
-
-                                RowLayout {
-                                    spacing: 10
-                                    Label { text: "Contrast" }
-                                    Slider {
-                                        id: contrastSlider
-                                        from: 0
-										to: 100
-										value: 50
-										stepSize: 1
-                                        Layout.fillWidth: true
-
-										onValueChanged: {
-											let contrastAmount = Math.abs(value - 50) / 2.0;  // range: 0 → 25
-											let increase = value >= 50;
-
-											contrast = contrastAmount;
-
-											if (contrastAmount > 0.1) {
-												apply("contrast", { increase, contrast: contrastAmount });
-											}
-										}
-									}
-									Label { text: contrast.toFixed(1) }
-                                }
-
-                                RowLayout {
-                                    spacing: 10
-                                    Label { text: "Hue" }
-                                    Slider {
-                                        id: hueSlider
-                                        value: hue
-                                        from: -180; to: 180
-                                        Layout.fillWidth: true
-                                        onValueChanged: {
-                                            hue = value
-                                            apply("hue", hue)
-                                        }
-                                    }
-                                    Label { text: hue.toFixed(0) }
-                                }
-
-                                RowLayout {
-                                    spacing: 10
-                                    Label { text: "Saturation" }
-                                    Slider {
-                                        id: saturationSlider
-                                        value: saturation
-                                        from: 0; to: 200
-                                        Layout.fillWidth: true
-                                        onValueChanged: {
-                                            saturation = value
-                                            apply("saturation", saturation)
-                                        }
-                                    }
-                                    Label { text: saturation.toFixed(0) }
-                                }
-
-                                RowLayout {
-                                    spacing: 10
-                                    Label { text: "Sharpen" }
-                                    Slider {
-                                        id: sharpenSlider
-                                        value: sharpness
-                                        from: 0; to: 10
-                                        Layout.fillWidth: true
-                                        onValueChanged: {
-                                            sharpness = value
-                                            apply("sharpen", sharpness)
-                                        }
-                                    }
-                                    Label { text: sharpness.toFixed(0) }
-                                }
-
-                                RowLayout {
-                                    spacing: 10
-                                    Label { text: "Gamma" }
-                                    Slider {
-                                        id: gammaSlider
-                                        value: gamma
-                                        from: 0; to: 5.0
-                                        stepSize: 0.1
-                                        Layout.fillWidth: true
-                                        onValueChanged: {
-                                            gamma = value
-                                            apply("gamma", gamma)
-                                        }
-                                    }
-                                    Label { text: gamma.toFixed(0) }
+                            spacing: 10
+                            Label { text: "Brightness"; color: theme.text; Layout.preferredWidth: 110 }
+                            Slider {
+                                id: brightnessSlider
+                                from: -100; to: 100
+                                value: brightness
+                                Layout.fillWidth: true
+                                onValueChanged: {
+                                    brightness = value
+                                    apply("brightness", { brightness })
                                 }
                             }
+                            Label { text: brightness.toFixed(0); color: theme.subtext; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
                         }
 
-						// Fun effects passthroughs
-                        GroupBox {
-                            title: "Effects"
+                        // Contrast
+                        RowLayout {
                             Layout.fillWidth: true
-
-                            GridLayout {
-                                columns: 4
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                Button { text: "Blur"; onClicked: apply("blur", 1.0) }
-                                Button { text: "Sepia"; onClicked: apply("sepia") }
-                                Button { text: "Vignette"; onClicked: apply("vignette") }
-                                Button { text: "Swirl"; onClicked: apply("swirl", 90) }
-                                Button { text: "Implode"; onClicked: apply("implode", 0.5) }
+                            spacing: 10
+                            Label { text: "Contrast"; color: theme.text; Layout.preferredWidth: 110 }
+                            Slider {
+                                id: contrastSlider
+                                from: 0
+                                to: 100
+                                value: 50
+                                stepSize: 1
+                                Layout.fillWidth: true
+                                onValueChanged: {
+                                    let contrastAmount = Math.abs(value - 50) / 2.0
+                                    let increase = value >= 50
+                                    contrast = contrastAmount
+                                    if (contrastAmount > 0.1) {
+                                        apply("contrast", { increase, contrast: contrastAmount })
+                                    }
+                                }
                             }
+                            Label { text: contrast.toFixed(1); color: theme.subtext; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
                         }
+
+                        // Hue
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Label { text: "Hue"; color: theme.text; Layout.preferredWidth: 110 }
+                            Slider {
+                                id: hueSlider
+                                value: hue
+                                from: -180; to: 180
+                                Layout.fillWidth: true
+                                onValueChanged: {
+                                    hue = value
+                                    apply("hue", hue)
+                                }
+                            }
+                            Label { text: hue.toFixed(0); color: theme.subtext; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        // Saturation
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Label { text: "Saturation"; color: theme.text; Layout.preferredWidth: 110 }
+                            Slider {
+                                id: saturationSlider
+                                value: saturation
+                                from: 0; to: 200
+                                Layout.fillWidth: true
+                                onValueChanged: {
+                                    saturation = value
+                                    apply("saturation", saturation)
+                                }
+                            }
+                            Label { text: saturation.toFixed(0); color: theme.subtext; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        // Sharpen
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Label { text: "Sharpen"; color: theme.text; Layout.preferredWidth: 110 }
+                            Slider {
+                                id: sharpenSlider
+                                value: sharpness
+                                from: 0; to: 10
+                                Layout.fillWidth: true
+                                onValueChanged: {
+                                    sharpness = value
+                                    apply("sharpen", sharpness)
+                                }
+                            }
+                            Label { text: sharpness.toFixed(0); color: theme.subtext; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        // Gamma
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Label { text: "Gamma"; color: theme.text; Layout.preferredWidth: 110 }
+                            Slider {
+                                id: gammaSlider
+                                value: gamma
+                                from: 0; to: 5.0
+                                stepSize: 0.1
+                                Layout.fillWidth: true
+                                onValueChanged: {
+                                    gamma = value
+                                    apply("gamma", gamma)
+                                }
+                            }
+                            Label { text: gamma.toFixed(1); color: theme.subtext; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
+                        }
+                    }
+                }
+
+				// =========================
+				// Effects
+				// =========================
+				Pane {
+					Layout.fillWidth: true
+					padding: 16
+
+					background: Rectangle {
+						color: theme.surface
+						radius: 12
+						border.width: 1
+						border.color: theme.divider
+					}
+
+					ColumnLayout {
+						anchors.horizontalCenter: parent.horizontalCenter
+						width: Math.min(parent.width, editorPage.cardWidthNarrow)
+						spacing: 12
+
+						Label {
+							text: "Effects"
+							color: theme.text
+							font.pixelSize: 18
+							font.weight: Font.Medium
+							Layout.alignment: Qt.AlignHCenter
+						}
+
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
+
+						GridLayout {
+							id: effectsGrid
+							Layout.fillWidth: true
+							Layout.alignment: Qt.AlignHCenter
+							rowSpacing: 10
+							columnSpacing: 10
+
+							// Decide layout from the *known* container width (the ColumnLayout width)
+							// 5 columns = 1 row, else 3 columns = 2 rows (5 items -> 2 rows max)
+							columns: (parent.width >= 560 ? 5 : 3)
+
+							// Uniform button sizing
+							readonly property int btnW: Math.floor((parent.width - (columns - 1) * columnSpacing) / columns)
+							readonly property int btnH: 40
+
+							ThemedButton {
+								text: "Blur"
+								theme: editorPage.theme
+								Layout.preferredWidth: effectsGrid.btnW
+								Layout.preferredHeight: effectsGrid.btnH
+								onClicked: apply("blur", 1.0)
+							}
+							ThemedButton {
+								text: "Sepia"
+								theme: editorPage.theme
+								Layout.preferredWidth: effectsGrid.btnW
+								Layout.preferredHeight: effectsGrid.btnH
+								onClicked: apply("sepia")
+							}
+							ThemedButton {
+								text: "Vignette"
+								theme: editorPage.theme
+								Layout.preferredWidth: effectsGrid.btnW
+								Layout.preferredHeight: effectsGrid.btnH
+								onClicked: apply("vignette")
+							}
+							ThemedButton {
+								text: "Swirl"
+								theme: editorPage.theme
+								Layout.preferredWidth: effectsGrid.btnW
+								Layout.preferredHeight: effectsGrid.btnH
+								onClicked: apply("swirl", 90)
+							}
+							ThemedButton {
+								text: "Implode"
+								theme: editorPage.theme
+								Layout.preferredWidth: effectsGrid.btnW
+								Layout.preferredHeight: effectsGrid.btnH
+								onClicked: apply("implode", 0.5)
+							}
+						}
+					}
+				}
+                Item { height: 6 }
+            }
+        }
+    }
+
+    // ---------- Bottom bar (Undo / Redo centered) ----------
+    Rectangle {
+        id: bottomBar
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 64
+        color: "transparent"
+
+        RowLayout {
+            anchors.centerIn: parent
+            spacing: 16
+
+            ThemedButton {
+                text: "Undo"
+                theme: editorPage.theme
+                padding: 12
+                font.pixelSize: 15
+                onClicked: {
+                    if (imageEditor.undo()) {
+                        isDirty = true
+                        imageEditor.saveImage(tempPath)
+                        refreshImage()
+                        refreshImageSize()
+                        resetSliders()
                     }
                 }
             }
-        }
 
-        // Save/Undo/Redo/Back controls
-        Rectangle {
-            Layout.fillWidth: true
-            height: 60
-            color: "transparent"
-
-            RowLayout {
-                anchors.centerIn: parent
-                spacing: 20
-
-                Button {
-                    text: "Save"
-                    onClicked: {
-                        if (imageEditor.saveImage(imagePath)) {
-                            isDirty = false
-                            toast.show("Image saved.")
-                        }
-                    }
-                }
-
-                Button {
-                    text: "Undo"
-                    onClicked: {
-                        if (imageEditor.undo()) {
-                            isDirty = true
-							imageEditor.saveImage(tempPath)
-							refreshImage()
-							refreshImageSize()
-							resetSliders()
-                        }
-                    }
-                }
-
-                Button {
-                    text: "Redo"
-                    onClicked: {
-                        if (imageEditor.redo()) {
-                            isDirty = true
-							imageEditor.saveImage(tempPath)
-							refreshImage()
-							refreshImageSize()
-							resetSliders()
-                        }
-                    }
-                }
-
-                Button {
-                    text: "Back"
-                    // ToolTip.text: "Return to the job list while discarding changes."
-                    // ToolTip.visible: hovered
-                    onClicked: {
-                        if (isDirty) {
-                            toast.show("Unsaved changes. Press back again to discard?")
-                            isDirty = false
-                        } else {
-                            cleanupAndExit()
-                        }
+            ThemedButton {
+                text: "Redo"
+                theme: editorPage.theme
+                padding: 12
+                font.pixelSize: 15
+                onClicked: {
+                    if (imageEditor.redo()) {
+                        isDirty = true
+                        imageEditor.saveImage(tempPath)
+                        refreshImage()
+                        refreshImageSize()
+                        resetSliders()
                     }
                 }
             }
         }
     }
-
 
     // Toast for lightweight feedback
     Toast {
@@ -435,40 +658,36 @@ Page {
         parent: Overlay.overlay
     }
 
-
     // Force preview reload with a cache-buster
     function refreshImage() {
         imagePreview.source = tempPath + "?" + Date.now()
     }
-	
-	
-	// Clean temp artifacts and leave editor
+
+    // Clean temp artifacts and leave editor
     function cleanupAndExit() {
         imageEditor.deleteFile(tempPath)
         imageEditor.clearUndoRedoStacks()
         stackView.pop()
     }
 
-
     // Return sliders to current backing values (after undo/redo)
     function resetSliders() {
-		brightnessSlider.value = brightness
-		contrastSlider.value = 50
-		hueSlider.value = hue
-		saturationSlider.value = saturation
-		sharpenSlider.value = sharpness
-		gammaSlider.value = gamma
-	}
+        brightnessSlider.value = brightness
+        contrastSlider.value = 50
+        hueSlider.value = hue
+        saturationSlider.value = saturation
+        sharpenSlider.value = sharpness
+        gammaSlider.value = gamma
+    }
 
-
-	// Command router: calls through to C++ ImageEditor and updates preview/temp
+    // Command router: calls through to C++ ImageEditor and updates preview/temp
     function apply(type, value) {
         const actions = {
             "flip":                 () => imageEditor.flip(value),
             "rotate":               () => imageEditor.rotate(value),
             "brightnessContrast":   () => imageEditor.adjustBrightnessContrast(value.brightness, value.contrast),
-            "brightness":			() => imageEditor.adjustBrightness(value.brightness),
-            "contrast": 			() => imageEditor.adjustContrast(value.increase, value.contrast, 128.0),
+            "brightness":           () => imageEditor.adjustBrightness(value.brightness),
+            "contrast":             () => imageEditor.adjustContrast(value.increase, value.contrast, 128.0),
             "hue":                  () => imageEditor.adjustHue(value),
             "saturation":           () => imageEditor.adjustSaturation(value),
             "gamma":                () => imageEditor.adjustGamma(value),
@@ -481,7 +700,7 @@ Page {
             "resizeOriginal":       () => imageEditor.resizeToOriginal(),
             "resizeHalf":           () => imageEditor.resizeToHalf(),
             "resizeDouble":         () => imageEditor.resizeToDouble(),
-            "resize":				() => imageEditor.resizeImage(value.x, value.y),
+            "resize":               () => imageEditor.resizeImage(value.x, value.y),
             "crop":                 () => imageEditor.crop(value.x, value.y, value.w, value.h),
         }
 
@@ -490,16 +709,17 @@ Page {
         if (actions[type]) {
             try {
                 ok = actions[type]()
-                isDirty = true
-                imageEditor.saveImage(tempPath)
-                refreshImage()
-            }
-            catch (err) {
+                if (ok !== false) {
+                    isDirty = true
+                    imageEditor.saveImage(tempPath)
+                    refreshImage()
+                }
+            } catch (err) {
                 console.warn("Error executing action:", type, err)
             }
-        }
-        else {
+        } else {
             console.warn("Unknown operation:", type)
         }
     }
 }
+

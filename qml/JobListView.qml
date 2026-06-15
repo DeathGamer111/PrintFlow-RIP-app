@@ -1,8 +1,11 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls as C
 import QtQuick.Layouts
-import Qt.labs.platform
+import Qt.labs.platform as P
 import QtCore
+import QtQuick.Window
+import "."
 
 
 // Job list view: selection workflow, persistence (load/save), and PRN generation entry.
@@ -11,6 +14,7 @@ Item {
     required property StackView stackView
     required property var jobModel
     required property var appState
+    required property Theme theme
 
     // Selection state used by toolbar actions and list highlighting.
     property bool selectionMode: false
@@ -19,6 +23,17 @@ Item {
 
     width: parent.width
     height: parent.height
+    
+    Component.onCompleted: {
+    	colorManager.selectedPrinter = appState.selectedPrinter
+	}
+	
+	Connections {
+		target: appState
+		function onSelectedPrinterChanged() {
+			colorManager.selectedPrinter = appState.selectedPrinter
+		}
+	}
 
 	// Toggle a single index in/out of the selection.
     function toggleSelection(index) {
@@ -93,6 +108,21 @@ Item {
             toast.show("Failed to print job.")
         }
     }
+    
+	function handlePrnFinished(success) {
+		if (!appState.isGeneratingPRN)
+			return
+
+		appState.isGeneratingPRN = false
+
+		if (success) {
+			console.log("PRN generated successfully:", outputFileDialog.file)
+			toast.show("PRN generated successfully.")
+		} else {
+			console.warn("Failed to generate PRN file.")
+			toast.show("Failed to generate PRN file.")
+		}
+	}
 
 
 	// Main vertical layout for header, toolbars, list, and dialogs.
@@ -103,42 +133,199 @@ Item {
 
         // Top branding/header with nav to printer setup.
         Rectangle {
-            height: 60
-            width: parent.width
-            color: "#2c3e50"
-            Layout.fillWidth: true
+			height: 60
+			Layout.fillWidth: true
+			color: theme.surface
 
             RowLayout {
-				Layout.fillWidth: true
-				Layout.fillHeight: true
-				spacing: 15
+				anchors.fill: parent
+				anchors.leftMargin: 8
+				anchors.rightMargin: 8
+				spacing: 10
 
-                Image {
-                    source: "qrc:/assets/logo.png"
-                    Layout.preferredWidth: 40
-                    Layout.preferredHeight: 40
-                    Layout.margins: 4
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                }
+				// Left: logo
+				Image {
+					source: "qrc:/assets/logo.png"
+					Layout.preferredWidth: 40
+					Layout.preferredHeight: 40
+					Layout.alignment: Qt.AlignVCenter
+					fillMode: Image.PreserveAspectFit
+					smooth: true
+				}
+				
+				// Center: title (true centered)
+    			Item { Layout.fillWidth: true }  // spacer
 
                 Label {
-                    text: "Print Job Manager"
-                    font.pixelSize: 22
-                    color: "white"
-                    verticalAlignment: Text.AlignVCenter
-                }
+					text: "Job Manager"
+					font.pixelSize: 22
+					color: theme.text
+					horizontalAlignment: Text.AlignHCenter
+					verticalAlignment: Text.AlignVCenter
+					Layout.alignment: Qt.AlignVCenter
+				}
 
-                Item { Layout.fillWidth: true }
+				Item { Layout.fillWidth: true }  // spacer
 
-                Button {
-                    text: "Printer Setup"
-                    Layout.leftMargin: 30
-                    onClicked: stackView.push("qrc:/qml/PrinterSetupView.qml", {
-                        stackView: stackView,
-                        appState: appState
-                    })
-                }
+				// Right: settings
+				C.ToolButton {
+					id: settingsBtn
+					text: "Settings"
+					Layout.alignment: Qt.AlignVCenter
+					hoverEnabled: true
+					
+				    height: 36
+				    padding: 10
+					
+					background: Rectangle {
+						radius: 8
+						color: settingsBtn.pressed
+							   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.22)
+							   : (settingsBtn.hovered
+								    ? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.10)
+								    : "transparent")
+						border.width: settingsBtn.hovered || settingsBtn.pressed ? 1 : 0
+						border.color: root.theme.divider
+					}
+
+					contentItem: Label {
+						text: settingsBtn.text
+						color: theme.text
+						verticalAlignment: Text.AlignVCenter
+						horizontalAlignment: Text.AlignHCenter
+						elide: Text.ElideRight
+					}
+
+					onClicked: {
+						const host = root.Window.window ? root.Window.window.contentItem : root
+						const p = settingsBtn.mapToItem(host, 0, settingsBtn.height)
+
+						settingsMenu.parent = host
+						settingsMenu.x = Math.max(8, p.x + settingsBtn.width - settingsMenu.implicitWidth)
+						settingsMenu.y = p.y + 6
+						settingsMenu.open()
+					}
+				}
+
+
+				C.Menu {
+					id: settingsMenu
+					padding: 6
+					parent: root.Window.window ? root.Window.window.contentItem : root
+					modal: false
+
+					background: Rectangle {
+						color: theme.surface2
+						radius: 10
+						implicitWidth: 240
+						implicitHeight: contentItem ? contentItem.implicitHeight + 12 : 120
+						border.width: 1
+						border.color: theme.divider
+					}
+
+					// Helper to keep menu text readable across dark/light
+					function themedItem(labelText, onTriggerFn) {
+						return null
+					}
+					
+
+					C.MenuItem {
+						id: miLoad
+						text: "Load Job(s)"
+						hoverEnabled: true
+
+						background: Rectangle {
+							radius: 8
+							color: miLoad.pressed
+								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+								   : (miLoad.hovered
+										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+										: "transparent")
+						}
+						
+						contentItem: Label { text: miLoad.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
+						
+						onTriggered: {
+							settingsMenu.close()
+							openFileDialog.open()
+						}
+					}
+
+					C.MenuSeparator { }
+
+					C.MenuItem {
+						id: miPrinter
+						text: "Printer Setup"
+						hoverEnabled: true
+
+						background: Rectangle {
+							radius: 8
+							color: miPrinter.pressed
+								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+								   : (miPrinter.hovered
+										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+										: "transparent")
+						}
+						
+						contentItem: Label { text: miPrinter.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
+						
+						onTriggered: {
+							settingsMenu.close()
+							stackView.push("qrc:/qml/PrinterSetupView.qml", {
+								stackView: stackView,
+								appState: appState,
+								theme: theme
+							})
+						}
+					}
+					
+					C.MenuSeparator { }
+
+					C.MenuItem {
+						id: miColor
+						text: "Color Management"
+						hoverEnabled: true
+
+						background: Rectangle {
+							radius: 8
+							color: miColor.pressed
+								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+								   : (miColor.hovered
+										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+										: "transparent")
+						}
+						
+						contentItem: Label { text: miColor.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
+						
+						onTriggered: {
+							settingsMenu.close()
+							stackView.push("qrc:/qml/ColorManagementView.qml", {
+								stackView: stackView,
+								appState: appState,
+								theme: theme
+							})
+						}
+					}
+
+					C.MenuSeparator { }
+
+					C.MenuItem {
+						id: miDarkMode
+						text: theme.dark ? "Switch to Light Mode" : "Switch to Dark Mode"
+						hoverEnabled: true
+
+						background: Rectangle {
+							radius: 8
+							color: miDarkMode.pressed
+								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+								   : (miDarkMode.hovered
+										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+										: "transparent")
+						}
+						contentItem: Label { text: miDarkMode.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
+						onTriggered: theme.dark = !theme.dark
+					}
+				}
             }
         }
 
@@ -147,43 +334,75 @@ Item {
         Frame {
             Layout.fillWidth: true
             padding: 10
-            background: Rectangle { color: "#34495e" }
+			background: Rectangle { color: theme.surface2 }
 
             RowLayout {
-                spacing: 10
-                Layout.alignment: Qt.AlignHCenter
+				anchors.fill: parent
+				anchors.leftMargin: 8
+				anchors.rightMargin: 8
+				spacing: 10
 
-                Button {
-                    text: selectionMode ? "Cancel Selection" : "Select Jobs"
-                    onClicked: {
-                        selectedIndexes = []
-                        selectionMode = !selectionMode
-                    }
-                }
+                
+                ThemedButton {
+					text: "New Job"
+					visible: !selectionMode
+					theme: root.theme
+					padding: 12
+					font.pixelSize: 15
+					onClicked: jobModel.addJob("New Print Job")
+				}
+				
+		        Item { Layout.fillWidth: true; visible: !selectionMode }
 
-                Button {
-                    text: areAllJobsSelected() ? "Deselect All" : "Select All"
-                    visible: selectionMode
-                    onClicked: areAllJobsSelected() ? deselectAll() : selectAll()
-                }
+				ThemedButton {
+					text: "Select Jobs"
+					visible: !selectionMode
+					theme: root.theme
+					padding: 12
+					font.pixelSize: 15
+					onClicked: {
+						selectedIndexes = []
+						selectionMode = true
+					}
+				}
 
-                Button {
-                    text: "Remove Jobs"
-                    visible: selectionMode
-                    enabled: selectedIndexes.length > 0
-                    onClicked: {
-                        const sorted = selectedIndexes.slice().sort((a, b) => b - a)
-                        for (let i = 0; i < sorted.length; ++i)
-                            jobModel.removeJob(sorted[i])
-                        selectedIndexes = []
-                    }
-                }
+				// Selection mode (Cancel + actions)
+				ThemedButton {
+					text: "Cancel Selection"
+					visible: selectionMode
+					theme: root.theme
+					onClicked: {
+						selectedIndexes = []
+						selectionMode = false
+					}
+				}
+
+				ThemedButton {
+					text: areAllJobsSelected() ? "Deselect All" : "Select All"
+					visible: selectionMode
+					theme: root.theme
+					onClicked: areAllJobsSelected() ? deselectAll() : selectAll()
+				}
+
+				ThemedButton {
+					text: "Remove Jobs"
+					visible: selectionMode
+					enabled: selectedIndexes.length > 0
+					theme: root.theme
+					onClicked: {
+						const sorted = selectedIndexes.slice().sort((a, b) => b - a)
+						for (let i = 0; i < sorted.length; ++i)
+							jobModel.removeJob(sorted[i])
+						selectedIndexes = []
+					}
+				}
 
 				// Save selected jobs to JSON (with embedded base64 image data).
-                Button {
+                ThemedButton {
                     text: "Save Jobs"
                     visible: selectionMode
                     enabled: selectedIndexes.length > 0
+       				theme: root.theme
                     onClicked: {
                         let jobName = jobModel.getJob(selectedIndexes[0]).name || "UntitledJob"
                         const downloads = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
@@ -201,7 +420,7 @@ Item {
             visible: selectionMode
             text: selectedIndexes.length + " job(s) selected"
             font.pixelSize: 14
-            color: "#7f8c8d"
+			color: theme.subtext
             Layout.topMargin: 10
             Layout.bottomMargin: 10
             horizontalAlignment: Text.AlignHCenter
@@ -229,7 +448,19 @@ Item {
 				// Each row supports selection highlight and navigation into details.
                 delegate: ItemDelegate {
                     width: jobListView.width
+                    hoverEnabled: true
                     highlighted: selectionMode && isSelected(index)
+                    
+					background: Rectangle {
+						radius: 10
+						color: highlighted
+							   ? Qt.rgba(root.theme.accent.r, root.theme.accent.g, root.theme.accent.b, 0.18)
+							   : (parent.hovered
+								    ? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.08)
+								    : "transparent")
+						border.width: highlighted ? 1 : 0
+						border.color: root.theme.accent
+					}
 
                     onClicked: {
                         if (selectionMode) {
@@ -239,7 +470,8 @@ Item {
                                 jobIndex: index,
                                 stackView: stackView,
                                 appState: appState,
-                                jobModel: jobModel
+                                jobModel: jobModel,
+                                theme: theme
                             })
                         }
                     }
@@ -261,6 +493,7 @@ Item {
                             text: model.name
                             Layout.fillWidth: true
                             verticalAlignment: Text.AlignVCenter
+                            color: theme.subtext
                         }
                     }
                 }
@@ -271,26 +504,22 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             height: 50
-            color: "#34495e"
+			color: theme.surface
 
             RowLayout {
                 anchors.centerIn: parent
                 spacing: 20
 
-                Button {
-                    text: "Add New Job"
-                    onClicked: jobModel.addJob("New Print Job")
-                }
-
-                Button {
-                    text: "Load Jobs"
-                    onClicked: openFileDialog.open()
-                }
-
 				// Print entry point: either open save dialog (simulated printer) or send directly.
-                Button {
+                ThemedButton {
                     text: "Print Job"
-                    enabled: selectedIndexes.length > 0
+					visible: selectionMode
+					enabled: selectedIndexes.length > 0
+					theme: root.theme
+
+					padding: 14
+					font.pixelSize: 16
+					
                     onClicked: {                    
 						const job = jobModel.getJob(selectedIndexes[0])
 						const jobName = job.name || "UntitledJob"
@@ -308,61 +537,72 @@ Item {
 
 
         // File dialog for loading job JSON.
-        FileDialog {
+        P.FileDialog {
             id: openFileDialog
             title: "Load Jobs from JSON"
             nameFilters: ["JSON Files (*.json)"]
-            fileMode: FileDialog.OpenFile
+            fileMode: P.FileDialog.OpenFile
             onAccepted: jobModel.loadFromJson(file)
         }
 
 
 		// File dialog for saving selected jobs to JSON.
-        FileDialog {
+        P.FileDialog {
             id: saveFileDialog
             title: "Save Jobs to JSON"
             nameFilters: ["JSON Files (*.json)"]
-            fileMode: FileDialog.SaveFile
+            fileMode: P.FileDialog.SaveFile
             defaultSuffix: "json"
             onAccepted: jobModel.saveToJson(file, selectedIndexes)
         }
 
 
 		// File dialog for choosing PRN output path when using the simulated printer.
-        FileDialog {
+        P.FileDialog {
             id: outputFileDialog
             title: "Select PRN File Destination"
             nameFilters: ["PRN Files (*.prn)", "All Files (*)"]
-            fileMode: FileDialog.SaveFile
-	    defaultSuffix: "prn"
+            fileMode: P.FileDialog.SaveFile
+	    	defaultSuffix: "prn"
             onAccepted: {
                 const outputPath = file
                 const job = jobModel.getJob(selectedIndexes[0])
 
                 appState.isGeneratingPRN = true
+				
+				if (appState.usingMultiInkPrinter == true) {
+				    // Clone the job map so we can inject MultiInk-specific fields
+					var multiInkJob = Object.assign({}, job)
 
-                // Use threaded function implemented in C++
-                printJobNocai.runPRNGeneration(job, outputPath)
+					// Pass current ink mode into the pipeline
+					multiInkJob.inkMode = appState.multiInkInkMode
+
+					console.log("Routing to Nocai MultiInk backend with inkMode =", appState.multiInkInkMode)
+					printJobMultiInk.runPRNGeneration(multiInkJob, outputPath)
+				}
+				else {
+					console.log("Routing to standard Nocai backend")
+			        printJobNocai.runPRNGeneration(job, outputPath)
+				}
             }
         }
-
 
 		// Connect to PRN completion signal to update UI and notify user.
-        Connections {
-            target: printJobNocai
+		Connections {
+			target: printJobNocai
 
-            function onPrnGenerationFinished(success) {
-                appState.isGeneratingPRN = false
-                
-                if (success) {
-                    console.log("PRN generated successfully:", outputFileDialog.file)
-                    toast.show("PRN generated successfully.")
-                } else {
-                    console.warn("Failed to generate PRN file.")
-                    toast.show("Failed to generate PRN file.")
-                }
-            }
-        }
+			function onPrnGenerationFinished(success) {
+				root.handlePrnFinished(success)
+			}
+		}
+
+		Connections {
+			target: printJobMultiInk
+
+			function onPrnGenerationFinished(success) {
+				root.handlePrnFinished(success)
+			}
+		}
 
 		// Lightweight toast for transient feedback.
         Toast {
@@ -403,7 +643,7 @@ Item {
 					anchors.fill: parent
 					radius: width / 2
 					border.width: 6
-					border.color: "#3498db"
+					border.color: theme.accent
 					color: "transparent"
 				}
 
@@ -412,7 +652,7 @@ Item {
 					height: height / 2
 					anchors.top: parent.top
 					anchors.horizontalCenter: parent.horizontalCenter
-					color: "#3498db"
+					color: theme.accent
 				}
 			}
 
@@ -420,7 +660,7 @@ Item {
                 text: "Rastering Image and Generating PRN..."
                 anchors.top: parent.verticalCenter
                 anchors.horizontalCenter: parent.horizontalCenter
-                color: "white"
+				color: theme.subtext
                 font.pixelSize: 18
                 anchors.topMargin: 80
             }

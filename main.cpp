@@ -9,8 +9,13 @@
 #include "ImageLoader.h"
 #include "PrintJobOutput.h"
 #include "PrintJobNocai.h"
+#include "PrintJobMultiInk.h"
 #include "ImageEditor.h"
 #include "ColorProfile.h"
+#include "ColorManagementManager.h"
+
+#include <QQuickStyle>
+#include <QQuickWindow>
 
 
 /* Entry point for the RIP application.
@@ -22,27 +27,11 @@
 int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
-    
-    // Force Fusion style
-    QApplication::setStyle(QStyleFactory::create("Fusion"));	// Consistent cross‑platform look.
-
-    // Dark palette (applies to widgets and influences Qt Quick Controls).
-    QPalette darkPalette;
-    darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::WindowText, Qt::white);
-    darkPalette.setColor(QPalette::Base, QColor(42, 42, 42));
-    darkPalette.setColor(QPalette::AlternateBase, QColor(66, 66, 66));
-    darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
-    darkPalette.setColor(QPalette::ToolTipText, Qt::white);
-    darkPalette.setColor(QPalette::Text, Qt::white);
-    darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ButtonText, Qt::white);
-    darkPalette.setColor(QPalette::BrightText, Qt::red);
-    darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::HighlightedText, Qt::black);
-
-    app.setPalette(darkPalette);
+  
+    // Optional: set Material theme + accent via env vars
+    qputenv("QT_QUICK_CONTROLS_MATERIAL_PRIMARY", "#14181F"); // charcoal
+    qputenv("QT_QUICK_CONTROLS_MATERIAL_ACCENT",  "#2DD4BF"); // teal
+    QQuickStyle::setStyle("Material");
     
     QQmlApplicationEngine engine;
     
@@ -52,7 +41,9 @@ int main(int argc, char *argv[]) {
     ImageEditor imageEditor;
     PrintJobOutput printJobOutput;
     PrintJobNocai printJobNocaiOutput;
+    PrintJobMultiInk printJobMultiInk;
     ColorProfile colorProfile;
+    ColorManagementManager colorManager;
 
     // Expose C++ objects to QML (context properties for convenient access).
     engine.rootContext()->setContextProperty("jobModel", &jobModel);
@@ -60,7 +51,16 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("imageEditor", &imageEditor);
     engine.rootContext()->setContextProperty("printJobOutput", &printJobOutput);
     engine.rootContext()->setContextProperty("printJobNocai", &printJobNocaiOutput);
+    engine.rootContext()->setContextProperty("printJobMultiInk", &printJobMultiInk);
     engine.rootContext()->setContextProperty("colorProfile", &colorProfile);
+    engine.rootContext()->setContextProperty("colorManager", &colorManager);
+    
+    // load persisted settings early
+    colorManager.load();
+
+    // bind shared ColorManager to both backends
+    printJobMultiInk.setColorManager(&colorManager);
+    printJobNocaiOutput.setColorManager(&colorManager);
     
     // Cap decode allocations to reduce OOM risk with very large images (MB).
     // Set to 0 to disable the guard (not recommended).

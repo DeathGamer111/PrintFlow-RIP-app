@@ -4,7 +4,7 @@ project(RIPPrinterApp VERSION 0.1 LANGUAGES CXX)
 
 # QT Setup
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Widgets QuickControls2 Xml)
 
 # qt_standard_project_setup(REQUIRES 6.8)
 set(CMAKE_AUTOMOC ON)
@@ -24,9 +24,16 @@ qt_add_executable(appRIPPrinterApp
     PrintJobModel.h PrintJobModel.cpp
     PrintJobOutput.h PrintJobOutput.cpp
     PrintJobNocai.h PrintJobNocai.cpp
+    PrintJobMultiInk.h PrintJobMultiInk.cpp
     ImageLoader.h ImageLoader.cpp
     ImageEditor.h ImageEditor.cpp
     ColorProfile.h ColorProfile.cpp
+    ColorManagementManager.h ColorManagementManager.cpp
+    AssetManager.h AssetManager.cpp
+   	MultiInkTypes.h
+    MultiInkToneBuilder.h MultiInkToneBuilder.cpp
+    MultiInkScreenEngine.h MultiInkScreenEngine.cpp
+    MultiInkLinearization.h MultiInkLinearization.cpp
     stb_image.h
 )
 
@@ -38,7 +45,14 @@ target_sources(appRIPPrinterApp PRIVATE
     ImageEditor.h
     PrintJobOutput.h
     PrintJobNocai.h
+    PrintJobMultiInk.h
     ColorProfile.h
+    ColorManagementManager.h
+    AssetManager.h
+	MultiInkTypes.h
+    MultiInkToneBuilder.h
+    MultiInkScreenEngine.h
+    MultiInkLinearization.h
 )
 
 # Mark this as the default QML resource prefix
@@ -54,18 +68,17 @@ qt_add_resources(appRIPPrinterApp
         qml/ImpositionView.qml
         qml/PrinterSetupView.qml
         qml/DraggableItem.qml
+        qml/ColorManagementView.qml
         qml/Toast.qml
+      	qml/Theme.qml
+      	qml/ThemedButton.qml
         assets/logo.png
-        assets/blue_noise_mask_256_12000/mask_c.tiff
-        assets/blue_noise_mask_256_12000/mask_m.tiff
-        assets/blue_noise_mask_256_12000/mask_y.tiff
-        assets/blue_noise_mask_256_12000/mask_k.tiff
-        assets/blue_noise_mask_512_12000/mask_c.tiff
-        assets/blue_noise_mask_512_12000/mask_m.tiff
-        assets/blue_noise_mask_512_12000/mask_y.tiff
-        assets/blue_noise_mask_512_12000/mask_k.tiff
         assets/RIP_App_1440_Plain_Default.icc
         assets/RIP_App_1440_Plain_Neutral.icc
+        assets/RIP_App_1200_8C.icc
+        assets/RIP_App_1200_4C.icc
+        assets/RIP_App_Linearization_1200_4C.xml
+        assets/RIP_App_Linearization_1200_8C.xml
         assets/RIP_App_Generic_CMYK.icc
         assets/sRGBProfile.icm
 )
@@ -101,7 +114,9 @@ set_target_properties(appRIPPrinterApp PROPERTIES
 target_link_libraries(appRIPPrinterApp
     PRIVATE Qt6::Quick
     PRIVATE Qt6::Concurrent
+	PRIVATE Qt6::QuickControls2
     PRIVATE Qt6::Widgets
+    PRIVATE Qt6::Xml
     PRIVATE cups
     PRIVATE PkgConfig::ImageMagick
     PRIVATE PkgConfig::LCMS

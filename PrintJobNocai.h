@@ -1,3 +1,5 @@
+// PrintJobNocai.h
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -5,13 +7,20 @@
 #include <QtConcurrent>
 #include <QTemporaryDir>
 #include <QVariantMap>
+#include <QVariantList>
+#include <QList>
+#include <QPair>
 #include <array>
+#include <vector>
+#include <cstdint>
+#include <memory>
 #include <Magick++.h>
+#include "ColorManagementManager.h"
 
-// PrintJobNocai.h
 // PRN generation pipeline: input load -> optional ICC convert -> CMYK separation ->
 // blue-noise thresholding -> dot classification (2bpp) -> PRN write. Exposed to QML.
 
+class ColorManagementManager;
 
 // Ink dot strategy (thresholds and optional neighborhood promotion).
 struct DotStrategy {
@@ -42,6 +51,8 @@ public slots:
 
 public:
     explicit PrintJobNocai(QObject* parent = nullptr);
+    
+    void setColorManager(ColorManagementManager* mgr);
 
     // QML-exposed pipeline
     Q_INVOKABLE bool loadInputImage(const QString& imagePath);										// Read + stage RGB/CMYK.
@@ -69,6 +80,8 @@ public:
 
 private:
 
+	ColorManagementManager* m_colorManager = nullptr;
+
     // Working images and intermediate data.
     Magick::Image inputImage;                        	// RGB input (temporary copy)
     std::array<Magick::Image, 4> cmykChannels;       	// C, M, Y, K separated
@@ -81,6 +94,7 @@ private:
     QString assetsExtractPath;
     QString originalFilename;
     QString tempImagePath;
+	bool assetsPrepared = false;
     std::unique_ptr<QTemporaryDir> tempDir;
     
     // ICC profile state.
