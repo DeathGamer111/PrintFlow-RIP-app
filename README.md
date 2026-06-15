@@ -1,95 +1,159 @@
-# RIP Application
+# RIP App
 
-A cross-platform (Linux & Android) Qt-based Raster Image Processing (RIP) application designed for production printing environments. RIP App enables flexible print job management, image editing, ICC color profile conversion, and PRN output generation for both CUPS-supported printers and Nocai hardware.
+RIP App is a Qt 6 raster image processing application for preparing and outputting print jobs. It combines job management, image inspection/editing, imposition controls, ICC-based color conversion, stochastic screening, dot strategy tuning, and PRN generation for Nocai-style print workflows.
 
-## Version: 1.1 Beta
+The current codebase is focused on Linux desktop development with CMake, CUPS, ImageMagick, and Little CMS.
 
----
+## Current Status
 
-## 🔧 Features
+- Active branch: `master`
+- Build system: CMake
+- UI framework: Qt Quick/QML
+- Main development build script: `./Dev_Build_App.sh`
+- Primary executable target: `appRIPPrinterApp`
 
-- **Print Job Management**: Create, edit, and persist multiple print jobs with JSON serialization.
-- **Image Editing**: Crop, rotate, flip, adjust brightness/contrast, and apply color conversions using ImageMagick.
-- **Color Profile Transformation**: Convert color spaces using LittleCMS (lcms2) with support for ICC profiles.
-- **Stochastic FM Screening**: Apply high-quality halftoning using custom blue noise masks.
-- **Dot Compensation**: Classify and promote ink dot sizes based on pixel neighborhoods for 2BPP Nocai output.
-- **PRN Output**: Export to CUPS printers or generate proprietary 2BPP PRN files for Nocai printers.
+## Features
 
----
+- Print job management with Qt model roles and JSON persistence.
+- Image loading, validation, metadata extraction, and PDF preview rendering through ImageMagick.
+- Image editing tools for crop, rotate, flip, resize, color adjustment, blur, sepia, vignette, swirl, implode, text, rectangle drawing, undo, and redo.
+- Imposition view for positioning artwork on the selected media.
+- Printer setup flow for CUPS printers, simulated Nocai output, and X-36NC multi-ink output.
+- ICC profile handling through Little CMS, including bundled CMYK and multi-ink output profiles.
+- Color-management settings for default input/output profiles, printer-specific profiles, profile families, and persisted dot strategy settings.
+- Nocai PRN generation with 2-bit dot classification, stochastic screening, and dot promotion controls.
+- Multi-ink PRN generation with 4, 5, 6, 7, 8, and 10 channel ink layouts.
+- Linearization support using bundled XML presets.
+- Runtime asset preparation for bundled ICC profiles, linearization files, logo assets, and local blue-noise masks.
 
-## 🖼 Screenshots & Workflow
+## Supported Ink Layouts
 
-A flowchart describing the application’s workflow is available in the repository under `docs/` or as part of the Software Design Document.
+The multi-ink backend currently supports:
 
----
+- 4 color: `Y M C K`
+- 5 color: `Y M C K + White`
+- 6 color: `Y M C K + Light Magenta + Light Cyan`
+- 7 color: `Y M C K + Light Magenta + Light Cyan + White`
+- 8 color: `Y M C K + Light Magenta + Light Cyan + Light Black + Light Light Black`
+- 10 color: `Y M C K + Light Magenta + Light Cyan + Light Black + Light Light Black + White + Varnish`
 
-## 📂 Project Structure
+The app defaults to the X-36NC photo-printer style multi-ink workflow and prepares the required runtime assets on startup.
 
-### Backend Components (C++ / Qt)
-- `PrintJobModel`: Manages all print job data
-- `PrintJobOutput`: Handles network printing via CUPS
-- `PrintJobNocai`: Custom backend for 2BPP output and blue noise dithering
-- `ImageEditor`: Core image editing interface using ImageMagick (Magick++)
-- `MetadataInspector`: Metadata extraction from images, PDFs, and SVGs
+## Project Layout
 
-### Frontend (QML)
-- `Main.qml`, `JobListView.qml`, `JobDetailsView.qml`, `ImageEditorView.qml`, `PrinterSetupView.qml`, `ImpositionView.qml`
+```text
+.
+|-- AssetManager.*                 Runtime asset extraction/copy helpers
+|-- ColorManagementManager.*       Persisted color, profile, dot, and linearization settings
+|-- ColorProfile.*                 ICC conversion support
+|-- ImageEditor.*                  QML-facing image editing operations
+|-- ImageLoader.*                  File validation, metadata, and preview helpers
+|-- MultiInk*.{h,cpp}              Multi-ink tone building, screening, and linearization
+|-- PrintJob*.{h,cpp}              Job model, CUPS output, Nocai output, and multi-ink output
+|-- assets/                        Bundled ICC profiles, linearization XML, and logo
+|-- docs/                          Flowchart and software design document
+|-- qml/                           Qt Quick user interface
+`-- scripts/                       Packaging and ImageMagick policy helper scripts
+```
 
----
+Important QML views include:
 
-## 📦 Build & Deploy
+- `qml/Main.qml`
+- `qml/JobListView.qml`
+- `qml/JobDetailsView.qml`
+- `qml/ImageEditorView.qml`
+- `qml/ImpositionView.qml`
+- `qml/PrinterSetupView.qml`
+- `qml/ColorManagementView.qml`
 
-### Linux
-- Requires: Qt 6, CUPS, ImageMagick, lcms2, poppler, librsvg
-- Deployable via AppImage or `.deb`
+## Assets
 
-### Android
-- Bundled with static builds of all dependencies
-- Packaged using Qt for Android
+Small runtime assets are tracked in `assets/`, including:
 
-Build system: `qmake` or `CMake`
+- Output ICC profiles for 4-color, 8-color, 1440 plain default, 1440 plain neutral, and generic CMYK workflows.
+- `sRGBProfile.icm`
+- Linearization XML presets for 4-color and 8-color output.
+- `logo.png`
 
----
+Large blue-noise mask directories are intentionally ignored by Git:
 
-## 🔒 Security
+```text
+assets/blue_noise_mask_*/**
+```
 
-- All processing is done locally (no cloud or server dependencies)
-- No personal user data is stored
-- Temporary files are purged automatically unless saved
-- Optional checksum validation for print jobs and images
+For local builds that generate multi-ink output, the app expects the `assets/blue_noise_mask_512_12000/` directory to exist locally with the mask TIFF files used by `Dev_Build_App.sh`.
 
----
+## Requirements
 
-## 📈 Performance
+The development script installs/checks the main Linux dependencies:
 
-- Startup time < 2 seconds on modern hardware
-- Handles moderate-size raster jobs with optimized CPU-bound processing
-- Output generation is memory-efficient and modular
+- CMake and a C++ compiler
+- Qt 6 Quick, Widgets, Quick Controls 2, QML tooling, and related QML modules
+- CUPS development libraries
+- ImageMagick Magick++
+- Little CMS 2
+- AppImage/package helper tooling used by the local workflow
 
----
+On Debian/Ubuntu-style systems, use the main development script when you want the full local setup path:
 
-## 🧪 Testing
+```bash
+./Dev_Build_App.sh
+```
 
-- Manual testing across supported file formats
-- Visual confirmation of edits and PRN output
-- ICC profile accuracy verified with sample jobs
+The script uses `sudo apt-get`, relaxes ImageMagick policy limits through `scripts/Relax_ImageMagick_Limits.sh`, clears the local app cache/build folder, runs CMake, builds the app, and copies blue-noise masks into:
 
----
+```text
+~/.local/share/appRIPPrinterApp/runtime_assets/
+```
 
-## 📄 Documentation
+## Standard Build
 
-This repository includes:
-- 📘 **[RIP-App Software Design Document](docs/RIP-App_Software_Design_Document.pdf)** – technical and architectural overview
-- 🧭 **[RIP-App Workflow Flowchart](docs/RIP-App_Workflow_Flowchart.pdf)** – visual overview of application operation
+For a normal compile without the dependency-install and policy steps:
 
----
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel
+```
 
-## 🔗 License
+Run the app with:
 
-Licensed under [MIT](LICENSE).
+```bash
+./build/appRIPPrinterApp
+```
 
----
+## Development Notes
 
-## 🙋‍♂️ Author
+- `build/` is ignored and should not be committed.
+- The generated Qt resource output under `.rcc/` is ignored.
+- The blue-noise mask source directory is ignored because the masks are large local runtime assets.
+- The tracked ICC and XML assets are required by the color-management and multi-ink paths.
+- `scripts/Dev_Build_App.sh` has been superseded by the root-level `Dev_Build_App.sh`.
 
-Created and maintained by **Austin McCall**.
+## Verification
+
+A useful quick verification path is:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel
+timeout 8s ./build/appRIPPrinterApp
+```
+
+The timeout command is only a smoke test for startup and QML/runtime initialization; it stops the GUI after a few seconds.
+
+## Documentation
+
+Additional project documentation is in `docs/`:
+
+- `docs/RIP-App_Software_Design_Document.docx`
+- `docs/RIP-APP_Flowchart.drawio`
+- `docs/RIP-APP_Flowchart.png`
+- `docs/README.md`
+
+## License
+
+No license file is currently included in this repository.
+
+## Author
+
+Created and maintained by **DeathGamer111**.
