@@ -304,7 +304,7 @@ Item {
 				spacing: 10
 
 					ThemedButton {
-					    text: "Back"
+					    text: strings.trKey("common.back")
 					    theme: root.theme
 					    Layout.preferredWidth: 88
 					    padding: 12
@@ -321,7 +321,7 @@ Item {
 				Item { Layout.fillWidth: true }
 
 				Label {
-				    text: "Job Details"
+				    text: strings.trKey("jobDetails.title")
 				    color: theme.text
 				    font.pixelSize: 20
 				    font.weight: Font.Medium
@@ -333,7 +333,7 @@ Item {
 				Item { Layout.fillWidth: true }
 
 					ThemedButton {
-					    text: "Save"
+					    text: strings.trKey("common.save")
 					    theme: root.theme
 					    Layout.preferredWidth: 88
 					    padding: 12
@@ -356,7 +356,7 @@ Item {
 		                    whitePlatePath: whitePlatePath,
 					        varnishPlatePath: varnishPlatePath
 				        })
-				        toast.show("Job Successfully Saved!")
+				        toast.show(strings.trKey("jobDetails.saved"))
 				    }
 				}
 			}
@@ -423,14 +423,14 @@ Item {
 
 			// Job name label
 			Label {
-				text: "Job Name"
+				text: strings.trKey("jobDetails.jobName")
 			}
 
 			// Job name field
 			TextField {
 				id: jobNameField
 				text: jobData.name
-				placeholderText: "Enter Job Name"
+				placeholderText: strings.trKey("jobDetails.jobName.placeholder")
 				Layout.fillWidth: true
 			}
 
@@ -464,7 +464,7 @@ Item {
 
 				Text {
 					anchors.centerIn: parent
-					text: jobData.imagePath === "" ? "No image loaded" : ""
+					text: jobData.imagePath === "" ? strings.trKey("jobDetails.noImage") : ""
 					visible: imagePath == ""
 					color: theme.subtext
 				}
@@ -476,7 +476,7 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
 
                 ThemedButton {
-                    text: "Upload Image"
+                    text: strings.trKey("jobDetails.uploadImage")
                     theme: root.theme
                     padding: 12
 					font.pixelSize: 14	
@@ -484,7 +484,7 @@ Item {
                 }
 
                 ThemedButton {
-                    text: "Edit Image"
+                    text: strings.trKey("jobDetails.editImage")
                     enabled: imagePath !== ""
                     theme: root.theme
 					padding: 12
@@ -499,7 +499,7 @@ Item {
 	                }
 
                 ThemedButton {
-                    text: "Edit Imposition"
+                    text: strings.trKey("jobDetails.editImposition")
                     enabled: imagePath !== ""
                     theme: root.theme
                     padding: 12
@@ -519,7 +519,7 @@ Item {
 			// File picker for artwork; validates and builds a PDF preview if needed.
             FileDialog {
                 id: imageDialog
-                title: "Select Image for Job"
+                title: strings.trKey("jobDetails.selectImage.title")
                 nameFilters: ["Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.svg *.pdf)"]
                 
                 onAccepted: {
@@ -557,7 +557,7 @@ Item {
 						
 			// Printer-related settings: media, DPI, offsets, white/varnish.
             Label {
-                text: "Printer Settings"
+                text: strings.trKey("jobDetails.printerSettings")
                 font.pixelSize: 18
                 horizontalAlignment: Text.AlignHCenter
                 Layout.alignment: Qt.AlignHCenter
@@ -578,7 +578,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignHCenter
 
-                    Label { text: "Paper Size" }
+                    Label { text: strings.trKey("jobDetails.paperSize") }
                     ComboBox {
                         id: paperSizeBox
                         Layout.fillWidth: true
@@ -594,7 +594,7 @@ Item {
                     visible: paperSizeBox.currentText === "Custom"
                     spacing: 8
 
-                    Label { text: "Custom Paper Size (Width × Height, mm)" }
+                    Label { text: strings.trKey("jobDetails.customPaperSize") }
 
                     RowLayout {
                         spacing: 8
@@ -623,7 +623,7 @@ Item {
                 }
 
 
-				Label { text: "Output DPI (X × Y)" }								
+				Label { text: strings.trKey("jobDetails.outputDpi") }
 				RowLayout {
 					spacing: 8
 					Layout.fillWidth: true
@@ -650,7 +650,7 @@ Item {
 					wrapMode: Text.Wrap
 				}
 
-                Label { text: "Offset (X × Y)" }
+                Label { text: strings.trKey("jobDetails.offset") }
                 RowLayout {
                     spacing: 8
                     Layout.fillWidth: true
@@ -678,7 +678,7 @@ Item {
                     }
                 }
 
-				Label { text: "White Mode" }
+				Label { text: strings.trKey("jobDetails.whiteMode") }
 				ComboBox {
 					id: whiteBox
 					Layout.fillWidth: true
@@ -693,7 +693,7 @@ Item {
 					spacing: 8
 
 					Label {
-						text: "White Plate File"
+						text: strings.trKey("jobDetails.whitePlateFile")
 						color: theme.text
 					}
 
@@ -705,7 +705,7 @@ Item {
 							Layout.fillWidth: true
 							text: whitePlatePath
 							readOnly: true
-							placeholderText: "No white plate selected"
+							placeholderText: strings.trKey("jobDetails.whitePlate.placeholder")
 						}
 
 						ThemedButton {
@@ -718,7 +718,7 @@ Item {
 				
 				Text {
 					visible: whiteBox.currentText === "Auto Underbase"
-					text: "Uses the printer mode defaults from Color Management."
+					text: strings.trKey("jobDetails.modeDefaults")
 					color: theme.subtext
 					wrapMode: Text.Wrap
 					font.pixelSize: 12
@@ -726,7 +726,7 @@ Item {
 				
 				FileDialog {
 					id: whitePlateDialog
-					title: "Select White Plate"
+					title: strings.trKey("jobDetails.whitePlate.title")
 					nameFilters: ["Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"]
 					fileMode: FileDialog.OpenFile
 
@@ -735,7 +735,7 @@ Item {
 					}
 				}
 
-				Label { text: "Varnish Mode" }
+				Label { text: strings.trKey("jobDetails.varnishMode") }
 				ComboBox {
 					id: varnishBox
 					Layout.fillWidth: true
@@ -750,7 +750,7 @@ Item {
 					spacing: 8
 
 					Label {
-						text: "Varnish Plate File"
+						text: strings.trKey("jobDetails.varnishPlateFile")
 						color: theme.text
 					}
 
@@ -762,7 +762,7 @@ Item {
 							Layout.fillWidth: true
 							text: varnishPlatePath
 							readOnly: true
-							placeholderText: "No varnish plate selected"
+							placeholderText: strings.trKey("jobDetails.varnishPlate.placeholder")
 						}
 
 						ThemedButton {
@@ -775,7 +775,7 @@ Item {
 				
 				Text {
 					visible: varnishBox.currentText === "Over Printed Area"
-					text: "Uses the printer mode defaults from Color Management."
+					text: strings.trKey("jobDetails.modeDefaults")
 					color: theme.subtext
 					wrapMode: Text.Wrap
 					font.pixelSize: 12
@@ -783,7 +783,7 @@ Item {
 				
 				FileDialog {
 					id: varnishPlateDialog
-					title: "Select Varnish Plate"
+					title: strings.trKey("jobDetails.varnishPlate.title")
 					nameFilters: ["Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"]
 					fileMode: FileDialog.OpenFile
 
@@ -793,7 +793,7 @@ Item {
 				}
                                 
 				// Color space selection and optional ICC-driven conversion.
-                Label { text: "Color Profile" }
+                Label { text: strings.trKey("jobDetails.colorProfile") }
                 ComboBox {
                     id: profileBox
                     Layout.fillWidth: true
@@ -809,21 +809,21 @@ Item {
 
                     ThemedButton {
 						visible: profileBox.currentText === "Custom ICC"
-						text: "Load Input ICC"
+						text: strings.trKey("jobDetails.loadInputIcc")
 						theme: root.theme
 						onClicked: { loadingInputICC = true; iccDialog.open() }
 				    }
 
 				    ThemedButton {
 						visible: profileBox.currentText === "Custom ICC"
-						text: "Load Output ICC"
+						text: strings.trKey("jobDetails.loadOutputIcc")
 						theme: root.theme
 						onClicked: { loadingInputICC = false; iccDialog.open() }
 				    }
 
 				    ThemedButton {
 						id: convertButton
-						text: "Convert Colorspace"
+						text: strings.trKey("jobDetails.convertColorspace")
 						theme: root.theme
 						visible: profileBox.currentText !== jobData.colorProfile
 						enabled: imagePath !== ""
@@ -839,9 +839,9 @@ Item {
                             if (result) {
                                 updateColorProfile()
                                 refreshPreview()
-                                toast.show("Color space converted!")
+                                toast.show(strings.trKey("jobDetails.toast.colorConverted"))
                             } else {
-                                toast.show("Color space conversion failed.")
+                                toast.show(strings.trKey("jobDetails.toast.colorFailed"))
                             }
                         }
                     }
@@ -849,7 +849,7 @@ Item {
 
 				// Show selected ICCs to show user what ICC will be applied.
                 Text {
-                    text: "Input: " + selectedInputICC
+                    text: strings.trKey("jobDetails.inputPrefix") + selectedInputICC
                     visible: profileBox.currentText === "Custom ICC" && selectedInputICC !== ""
     				color: theme.subtext
                     wrapMode: Text.Wrap
@@ -857,7 +857,7 @@ Item {
                 }
 
                 Text {
-                    text: "Output: " + selectedOutputICC
+                    text: strings.trKey("jobDetails.outputPrefix") + selectedOutputICC
                     visible: profileBox.currentText === "Custom ICC" && selectedOutputICC !== ""
     				color: theme.subtext
                     wrapMode: Text.Wrap
@@ -867,7 +867,7 @@ Item {
 					// Shared ICC picker; writes to input or output depending on the toggle.
 		            FileDialog {
 		                id: iccDialog
-		                title: "Select ICC Profile"
+		                title: strings.trKey("jobDetails.selectIcc.title")
 		                nameFilters: ["ICC Profiles (*.icc *.icm)"]
 		                onAccepted: {
 		                    if (loadingInputICC) {
@@ -891,7 +891,7 @@ Item {
 
 						// Raw metadata dump (only shows keys that exist).
                         GroupBox {
-                            title: "Image Metadata"
+                            title: strings.trKey("jobDetails.metadata.title")
                             Layout.fillWidth: true
                             visible: Object.keys(imageMeta).length > 0
 

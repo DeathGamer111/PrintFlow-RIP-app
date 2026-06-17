@@ -121,7 +121,7 @@ Item {
 
     function printSelectedMultiInkDirectly() {
         if (!appState.supportsDirectPrint || !appState.supportsRipProcessing) {
-            toast.show("Direct print is not available on this platform yet.")
+            toast.show(strings.trKey("jobs.toast.directUnavailable"))
             return
         }
 
@@ -138,7 +138,7 @@ Item {
 	// Direct print path (bypasses file save): generates and sends to the configured printer.
     function printSelectedJobDirectly() {
         if (!appState.supportsCupsPrinting) {
-            toast.show("CUPS printing is not available on this platform.")
+            toast.show(strings.trKey("jobs.toast.cupsUnavailable"))
             return
         }
 
@@ -151,10 +151,10 @@ Item {
         const success = printJobOutput.generatePRN(job, inputFile, outputPath)
         if (success) {
             console.log("Print job sent to printer:", appState.selectedPrinter)
-            toast.show("Print job sent successfully.")
+            toast.show(strings.trKey("jobs.toast.printSent"))
         } else {
             console.warn("Failed to print job:", job.name)
-            toast.show("Failed to print job.")
+            toast.show(strings.trKey("jobs.toast.printFailed"))
         }
     }
     
@@ -167,18 +167,18 @@ Item {
 		if (success) {
             if (appState.usingMultiInkPrinter && appState.multiInkOutputMode === "direct") {
                 console.log("Direct print sent successfully.")
-                toast.show("Sent to printer.")
+                toast.show(strings.trKey("jobs.toast.sentToPrinter"))
             } else {
                 console.log("PRN generated successfully:", outputFileDialog.file)
-                toast.show("PRN generated successfully.")
+                toast.show(strings.trKey("jobs.toast.prnGenerated"))
             }
 		} else {
             if (appState.usingMultiInkPrinter && appState.multiInkOutputMode === "direct") {
                 console.warn("Failed to send direct print job.")
-                toast.show("Failed to send to printer.")
+                toast.show(strings.trKey("jobs.toast.sendFailed"))
             } else {
-                console.warn("Failed to generate PRN file.")
-                toast.show("Failed to generate PRN file.")
+                console.warn(strings.trKey("jobs.toast.prnFailed"))
+                toast.show(strings.trKey("jobs.toast.prnFailed"))
             }
 		}
 	}
@@ -216,7 +216,7 @@ Item {
     			Item { Layout.fillWidth: true }  // spacer
 
                 Label {
-					text: "Job Manager"
+					text: strings.trKey("jobs.title")
 					font.pixelSize: 22
 					color: theme.text
 					horizontalAlignment: Text.AlignHCenter
@@ -229,7 +229,7 @@ Item {
 				// Right: settings
 				C.ToolButton {
 					id: settingsBtn
-					text: "Settings"
+					text: strings.trKey("jobs.settings")
 					Layout.alignment: Qt.AlignVCenter
 					hoverEnabled: true
 					
@@ -284,7 +284,7 @@ Item {
 
 						C.MenuItem {
 							id: miLoad
-							text: "Load Job(s)"
+							text: strings.trKey("jobs.load")
 							hoverEnabled: true
 
 							background: Rectangle {
@@ -308,7 +308,7 @@ Item {
 
 						C.MenuItem {
 							id: miPrinter
-							text: "Printer Setup"
+							text: strings.trKey("jobs.printerSetup")
 							hoverEnabled: true
 
 							background: Rectangle {
@@ -336,7 +336,7 @@ Item {
 
 						C.MenuItem {
 							id: miMaintenance
-							text: "Printer Maintenance"
+							text: strings.trKey("jobs.printerMaintenance")
 							enabled: nocaiDirectPrint.supportsMaintenance(appState.selectedPrinter)
 							hoverEnabled: enabled
 
@@ -370,7 +370,7 @@ Item {
 
 						C.MenuItem {
 							id: miColor
-							text: "Color Management"
+							text: strings.trKey("jobs.colorManagement")
 							hoverEnabled: true
 
 							background: Rectangle {
@@ -398,7 +398,7 @@ Item {
 
 						C.MenuItem {
 							id: miDarkMode
-							text: root.theme.dark ? "Switch to Light Mode" : "Switch to Dark Mode"
+							text: root.theme.dark ? strings.trKey("jobs.switchLight") : strings.trKey("jobs.switchDark")
 							hoverEnabled: true
 
 							background: Rectangle {
@@ -431,7 +431,7 @@ Item {
 
                 
                 ThemedButton {
-					text: "New Job"
+					text: strings.trKey("jobs.new")
 					visible: !selectionMode
 					theme: root.theme
 					padding: 12
@@ -442,7 +442,7 @@ Item {
 		        Item { Layout.fillWidth: true; visible: !selectionMode }
 
 				ThemedButton {
-					text: "Select Jobs"
+					text: strings.trKey("jobs.select")
 					visible: !selectionMode
 					theme: root.theme
 					padding: 12
@@ -455,7 +455,7 @@ Item {
 
 				// Selection mode (Cancel + actions)
 				ThemedButton {
-					text: "Cancel Selection"
+					text: strings.trKey("jobs.cancelSelection")
 					visible: selectionMode
 					theme: root.theme
 					onClicked: {
@@ -465,14 +465,14 @@ Item {
 				}
 
 				ThemedButton {
-					text: areAllJobsSelected() ? "Deselect All" : "Select All"
+					text: areAllJobsSelected() ? strings.trKey("jobs.deselectAll") : strings.trKey("jobs.selectAll")
 					visible: selectionMode
 					theme: root.theme
 					onClicked: areAllJobsSelected() ? deselectAll() : selectAll()
 				}
 
 				ThemedButton {
-					text: "Remove Jobs"
+					text: strings.trKey("jobs.remove")
 					visible: selectionMode
 					enabled: selectedIndexes.length > 0
 					theme: root.theme
@@ -486,7 +486,7 @@ Item {
 
 				// Save selected jobs to JSON (with embedded base64 image data).
                 ThemedButton {
-                    text: "Save Jobs"
+                    text: strings.trKey("jobs.save")
                     visible: selectionMode
                     enabled: selectedIndexes.length > 0
        				theme: root.theme
@@ -505,7 +505,7 @@ Item {
         // Selection status readout; shown only while selection mode is active.
         Label {
             visible: selectionMode
-            text: selectedIndexes.length + " job(s) selected"
+            text: selectedIndexes.length + strings.trKey("jobs.selectedSuffix")
             font.pixelSize: 14
 			color: theme.subtext
             Layout.topMargin: 10
@@ -599,7 +599,7 @@ Item {
 
 				// Print entry point: either open save dialog (simulated printer) or send directly.
                 ThemedButton {
-                    text: "Print Job"
+                    text: strings.trKey("jobs.print")
 					visible: selectionMode
 					enabled: selectedIndexes.length > 0
 					theme: root.theme
@@ -631,7 +631,7 @@ Item {
         // File dialog for loading job JSON.
         P.FileDialog {
             id: openFileDialog
-            title: "Load Jobs from JSON"
+            title: strings.trKey("jobs.loadJson.title")
             nameFilters: ["JSON Files (*.json)"]
             fileMode: P.FileDialog.OpenFile
             onAccepted: jobModel.loadFromJson(file)
@@ -641,7 +641,7 @@ Item {
 		// File dialog for saving selected jobs to JSON.
         P.FileDialog {
             id: saveFileDialog
-            title: "Save Jobs to JSON"
+            title: strings.trKey("jobs.saveJson.title")
             nameFilters: ["JSON Files (*.json)"]
             fileMode: P.FileDialog.SaveFile
             defaultSuffix: "json"
@@ -652,7 +652,7 @@ Item {
 		// File dialog for choosing PRN output path when using the simulated printer.
         P.FileDialog {
             id: outputFileDialog
-            title: "Select PRN File Destination"
+            title: strings.trKey("jobs.prnDestination.title")
             nameFilters: ["PRN Files (*.prn)", "All Files (*)"]
             fileMode: P.FileDialog.SaveFile
 	    	defaultSuffix: "prn"
@@ -664,7 +664,7 @@ Item {
 				
 				if (appState.usingMultiInkPrinter == true) {
                     if (!appState.supportsRipProcessing) {
-                        toast.show("PRN generation is not available on this platform yet.")
+                        toast.show(strings.trKey("jobs.toast.prnUnavailable"))
                         appState.isGeneratingPRN = false
                         return
                     }
@@ -681,7 +681,7 @@ Item {
 				}
 				else {
                     if (!appState.supportsRipProcessing) {
-                        toast.show("PRN generation is not available on this platform yet.")
+                        toast.show(strings.trKey("jobs.toast.prnUnavailable"))
                         appState.isGeneratingPRN = false
                         return
                     }
@@ -764,7 +764,7 @@ Item {
 			}
 
             Text {
-                text: "Rastering Image and Generating PRN..."
+                text: strings.trKey("jobs.rasterizing")
                 anchors.top: parent.verticalCenter
                 anchors.horizontalCenter: parent.horizontalCenter
 				color: theme.subtext

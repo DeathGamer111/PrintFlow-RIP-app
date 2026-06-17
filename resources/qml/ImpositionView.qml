@@ -114,11 +114,11 @@ Page {
 
             let imposedPath = jobData().imagePath.replace(/(\.\w+)$/, "_imposed$1")
             jobModel.updateJob(jobIndex, cloneJobWithOffset(newOffset, imposedPath))
-            toast.show("Image updated with drawn elements.")
+            toast.show(strings.trKey("imposition.toast.imageUpdated"))
         } else {
             jobModel.updateJob(jobIndex, cloneJobWithOffset(newOffset))
             console.log("Image offset updated:", newOffset)
-            toast.show("Offset position updated.")
+            toast.show(strings.trKey("imposition.toast.offsetUpdated"))
         }
     }
 
@@ -138,7 +138,7 @@ Page {
             spacing: 10
 
             ThemedButton {
-                text: "Back"
+                text: strings.trKey("common.back")
                 theme: impositionView.theme
                 Layout.preferredWidth: 88
                 padding: 12
@@ -149,7 +149,7 @@ Page {
             Item { Layout.fillWidth: true }
 
             Label {
-                text: "Imposition"
+                text: strings.trKey("imposition.title")
                 color: theme.text
                 font.pixelSize: 20
                 font.weight: Font.Medium
@@ -160,7 +160,7 @@ Page {
             Item { Layout.fillWidth: true }
 
             ThemedButton {
-                text: "Save"
+                text: strings.trKey("common.save")
                 theme: impositionView.theme
                 Layout.preferredWidth: 88
                 padding: 12
@@ -364,7 +364,7 @@ Page {
 						readonly property int btnW: 140
 
 						ThemedButton {
-							text: "Zoom Out"
+							text: strings.trKey("imposition.zoomOut")
 							theme: impositionView.theme
 							Layout.preferredWidth: zoomGrid.btnW
 							Layout.preferredHeight: zoomGrid.btnH
@@ -382,7 +382,7 @@ Page {
 						}
 
 						ThemedButton {
-							text: "Zoom In"
+							text: strings.trKey("imposition.zoomIn")
 							theme: impositionView.theme
 							Layout.preferredWidth: zoomGrid.btnW
 							Layout.preferredHeight: zoomGrid.btnH
@@ -412,7 +412,7 @@ Page {
 					spacing: 12
 
                     Label {
-                        text: "Overlay Tools"
+                        text: strings.trKey("imposition.overlayTools")
                         color: theme.text
                         font.pixelSize: 18
                         font.weight: Font.Medium
@@ -432,14 +432,14 @@ Page {
 							spacing: 10
 
 							Label {
-								text: "Text"
+								text: strings.trKey("imposition.text")
 								color: theme.text
 								Layout.preferredWidth: 60
 							}
 
 							TextField {
 								id: textOverlayField
-								placeholderText: "Enter text to draw"
+								placeholderText: strings.trKey("imposition.text.placeholder")
 								Layout.fillWidth: true
 							}
 						}
@@ -450,7 +450,7 @@ Page {
 							Layout.alignment: Qt.AlignHCenter
 
 							ThemedButton {
-								text: "Draw Text"
+								text: strings.trKey("imposition.drawText")
 								theme: impositionView.theme
 								Layout.preferredHeight: 40
 								Layout.preferredWidth: 160
@@ -479,7 +479,7 @@ Page {
 							spacing: 10
 
 							Label {
-								text: "Width"
+								text: strings.trKey("imposition.width")
 								color: theme.text
 								Layout.preferredWidth: 60
 							}
@@ -491,7 +491,7 @@ Page {
 							}
 
 							Label {
-								text: "Height"
+								text: strings.trKey("imposition.height")
 								color: theme.text
 								Layout.preferredWidth: 60
 							}
@@ -508,7 +508,7 @@ Page {
 							Layout.alignment: Qt.AlignHCenter
 
 							ThemedButton {
-								text: "Draw Rect"
+								text: strings.trKey("imposition.drawRect")
 								theme: impositionView.theme
 								Layout.preferredHeight: 40
 								Layout.preferredWidth: 160

@@ -58,15 +58,15 @@ Page {
     function doSave() {
         if (imageEditor.saveImage(imagePath)) {
             isDirty = false
-            toast.show("Image saved.")
+            toast.show(strings.trKey("imageEditor.toast.saved"))
         } else {
-            toast.show("Save failed.")
+            toast.show(strings.trKey("imageEditor.toast.saveFailed"))
         }
     }
 
     function doBack() {
         if (isDirty) {
-            toast.show("Unsaved changes. Press Back again to discard.")
+            toast.show(strings.trKey("imageEditor.toast.unsavedBack"))
             isDirty = false
         } else {
             cleanupAndExit()
@@ -105,7 +105,7 @@ Page {
             spacing: 10
 
             ThemedButton {
-                text: "Back"
+                text: strings.trKey("common.back")
                 theme: editorPage.theme
                 Layout.preferredWidth: 88
                 padding: 12
@@ -116,7 +116,7 @@ Page {
             Item { Layout.fillWidth: true }
 
             Label {
-                text: "Edit Image"
+                text: strings.trKey("imageEditor.title")
                 color: theme.text
                 font.pixelSize: 20
                 font.weight: Font.Medium
@@ -127,7 +127,7 @@ Page {
             Item { Layout.fillWidth: true }
 
             ThemedButton {
-                text: "Save"
+                text: strings.trKey("common.save")
                 theme: editorPage.theme
                 Layout.preferredWidth: 88
                 padding: 12
@@ -227,7 +227,7 @@ Page {
 						spacing: 12
 
 						Label {
-							text: "View"
+							text: strings.trKey("imageEditor.view")
 							color: theme.text
 							font.pixelSize: 18
 							font.weight: Font.Medium
@@ -240,13 +240,13 @@ Page {
 							Layout.fillWidth: true
 							spacing: 10
 
-							ThemedButton { text: "Original Size"; theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeOriginal"); refreshImageSize() } }
-							ThemedButton { text: "Half Size";     theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeHalf"); refreshImageSize() } }
-							ThemedButton { text: "Double Size";   theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeDouble"); refreshImageSize() } }
+							ThemedButton { text: strings.trKey("imageEditor.originalSize"); theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeOriginal"); refreshImageSize() } }
+							ThemedButton { text: strings.trKey("imageEditor.halfSize");     theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeHalf"); refreshImageSize() } }
+							ThemedButton { text: strings.trKey("imageEditor.doubleSize");   theme: editorPage.theme; Layout.fillWidth: true; onClicked: { apply("resizeDouble"); refreshImageSize() } }
 						}
 
 						Label {
-							text: "Resize (Width × Height)"
+							text: strings.trKey("imageEditor.resizeTitle")
 							color: theme.subtext
 							Layout.alignment: Qt.AlignHCenter
 						}
@@ -284,7 +284,7 @@ Page {
 							}
 
 							ThemedButton {
-								text: "Resize"
+								text: strings.trKey("imageEditor.resize")
 								theme: editorPage.theme
 								Layout.fillWidth: true
 								Layout.columnSpan: (parent.columns === 2 ? 2 : 1)   // if 2-col layout, put button on its own row
@@ -314,7 +314,7 @@ Page {
 						spacing: 12
 
 						Label {
-							text: "Transform"
+							text: strings.trKey("imageEditor.transform")
 							color: theme.text
 							font.pixelSize: 18
 							font.weight: Font.Medium
@@ -341,7 +341,7 @@ Page {
 							readonly property int btnH: 40
 
 							ThemedButton {
-								text: "Flip H"
+								text: strings.trKey("imageEditor.flipH")
 								theme: editorPage.theme
 								Layout.preferredWidth: transformGrid.btnW
 								Layout.preferredHeight: transformGrid.btnH
@@ -349,7 +349,7 @@ Page {
 							}
 
 							ThemedButton {
-								text: "Flip V"
+								text: strings.trKey("imageEditor.flipV")
 								theme: editorPage.theme
 								Layout.preferredWidth: transformGrid.btnW
 								Layout.preferredHeight: transformGrid.btnH
@@ -357,7 +357,7 @@ Page {
 							}
 
 							ThemedButton {
-								text: "Rotate"
+								text: strings.trKey("imageEditor.rotate")
 								theme: editorPage.theme
 								Layout.preferredWidth: transformGrid.btnW
 								Layout.preferredHeight: transformGrid.btnH
@@ -365,7 +365,7 @@ Page {
 							}
 							
 							ThemedButton {
-								text: "Crop"
+								text: strings.trKey("imageEditor.crop")
 								theme: editorPage.theme
 								Layout.preferredWidth: transformGrid.btnW
 								Layout.preferredHeight: transformGrid.btnH
@@ -395,7 +395,7 @@ Page {
 						spacing: 12
 
                         Label {
-                            text: "Enhance"
+                            text: strings.trKey("imageEditor.enhance")
                             color: theme.text
                             font.pixelSize: 18
                             font.weight: Font.Medium
@@ -408,7 +408,7 @@ Page {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
-                            Label { text: "Brightness"; color: theme.text; Layout.preferredWidth: 110 }
+                            Label { text: strings.trKey("imageEditor.brightness"); color: theme.text; Layout.preferredWidth: 110 }
                             Slider {
                                 id: brightnessSlider
                                 from: -100; to: 100
@@ -426,7 +426,7 @@ Page {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
-                            Label { text: "Contrast"; color: theme.text; Layout.preferredWidth: 110 }
+                            Label { text: strings.trKey("imageEditor.contrast"); color: theme.text; Layout.preferredWidth: 110 }
                             Slider {
                                 id: contrastSlider
                                 from: 0
@@ -450,7 +450,7 @@ Page {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
-                            Label { text: "Hue"; color: theme.text; Layout.preferredWidth: 110 }
+                            Label { text: strings.trKey("imageEditor.hue"); color: theme.text; Layout.preferredWidth: 110 }
                             Slider {
                                 id: hueSlider
                                 value: hue
@@ -468,7 +468,7 @@ Page {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
-                            Label { text: "Saturation"; color: theme.text; Layout.preferredWidth: 110 }
+                            Label { text: strings.trKey("imageEditor.saturation"); color: theme.text; Layout.preferredWidth: 110 }
                             Slider {
                                 id: saturationSlider
                                 value: saturation
@@ -486,7 +486,7 @@ Page {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
-                            Label { text: "Sharpen"; color: theme.text; Layout.preferredWidth: 110 }
+                            Label { text: strings.trKey("imageEditor.sharpen"); color: theme.text; Layout.preferredWidth: 110 }
                             Slider {
                                 id: sharpenSlider
                                 value: sharpness
@@ -504,7 +504,7 @@ Page {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
-                            Label { text: "Gamma"; color: theme.text; Layout.preferredWidth: 110 }
+                            Label { text: strings.trKey("imageEditor.gamma"); color: theme.text; Layout.preferredWidth: 110 }
                             Slider {
                                 id: gammaSlider
                                 value: gamma
@@ -541,7 +541,7 @@ Page {
 						spacing: 12
 
 						Label {
-							text: "Effects"
+							text: strings.trKey("imageEditor.effects")
 							color: theme.text
 							font.pixelSize: 18
 							font.weight: Font.Medium
@@ -566,35 +566,35 @@ Page {
 							readonly property int btnH: 40
 
 							ThemedButton {
-								text: "Blur"
+								text: strings.trKey("imageEditor.blur")
 								theme: editorPage.theme
 								Layout.preferredWidth: effectsGrid.btnW
 								Layout.preferredHeight: effectsGrid.btnH
 								onClicked: apply("blur", 1.0)
 							}
 							ThemedButton {
-								text: "Sepia"
+								text: strings.trKey("imageEditor.sepia")
 								theme: editorPage.theme
 								Layout.preferredWidth: effectsGrid.btnW
 								Layout.preferredHeight: effectsGrid.btnH
 								onClicked: apply("sepia")
 							}
 							ThemedButton {
-								text: "Vignette"
+								text: strings.trKey("imageEditor.vignette")
 								theme: editorPage.theme
 								Layout.preferredWidth: effectsGrid.btnW
 								Layout.preferredHeight: effectsGrid.btnH
 								onClicked: apply("vignette")
 							}
 							ThemedButton {
-								text: "Swirl"
+								text: strings.trKey("imageEditor.swirl")
 								theme: editorPage.theme
 								Layout.preferredWidth: effectsGrid.btnW
 								Layout.preferredHeight: effectsGrid.btnH
 								onClicked: apply("swirl", 90)
 							}
 							ThemedButton {
-								text: "Implode"
+								text: strings.trKey("imageEditor.implode")
 								theme: editorPage.theme
 								Layout.preferredWidth: effectsGrid.btnW
 								Layout.preferredHeight: effectsGrid.btnH
@@ -622,7 +622,7 @@ Page {
             spacing: 16
 
             ThemedButton {
-                text: "Undo"
+                text: strings.trKey("imageEditor.undo")
                 theme: editorPage.theme
                 padding: 12
                 font.pixelSize: 15
@@ -638,7 +638,7 @@ Page {
             }
 
             ThemedButton {
-                text: "Redo"
+                text: strings.trKey("imageEditor.redo")
                 theme: editorPage.theme
                 padding: 12
                 font.pixelSize: 15

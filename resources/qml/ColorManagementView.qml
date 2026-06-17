@@ -207,13 +207,13 @@ Page {
     function doSave() {
         const ok = colorManager.save()
         console.log("[ColorManagementView] Save clicked ->", ok ? "OK" : "FAILED")
-        toast.show(ok ? "Saved." : "Save failed (check permissions/path).")
+        toast.show(ok ? strings.trKey("color.toast.saved") : strings.trKey("color.toast.saveFailed"))
     }
 
     function doReset() {
         colorManager.resetToDefaults()
         console.log("[ColorManagementView] Reset to defaults")
-        toast.show("Defaults restored.")
+        toast.show(strings.trKey("color.toast.defaultsRestored"))
         syncDropdownsFromManager()
         // Reload params in case defaults changed
         syncSelectedModeFromPrinter()
@@ -255,7 +255,7 @@ Page {
 		    spacing: 10
 
 			    ThemedButton {
-			        text: "Back"
+			        text: strings.trKey("common.back")
 			        theme: root.theme
                     Layout.preferredWidth: 88
 					padding: 12
@@ -266,7 +266,7 @@ Page {
 		    Item { Layout.fillWidth: true }
 
 		    Label {
-		        text: "Color Management"
+		        text: strings.trKey("color.title")
 		        color: theme.text
 		        font.pixelSize: 20
 		        font.weight: Font.Medium
@@ -277,7 +277,7 @@ Page {
 		    Item { Layout.fillWidth: true }
 
 			    ThemedButton {
-			        text: "Save"
+			        text: strings.trKey("common.save")
 			        theme: root.theme
                     Layout.preferredWidth: 88
 					padding: 12
@@ -326,14 +326,14 @@ Page {
 						spacing: 2
 
 						Label {
-							text: "Reset to Defaults"
+							text: strings.trKey("color.resetDefaults")
 							color: theme.text
 							font.pixelSize: 16
 							font.weight: Font.Medium
 						}
 
 						Label {
-							text: "Restore ICC selections and dot strategy settings back to the default values."
+							text: strings.trKey("color.resetDefaults.help")
 							color: theme.subtext
 							wrapMode: Text.WordWrap
 							Layout.fillWidth: true
@@ -341,7 +341,7 @@ Page {
 					}
 
 					ThemedButton {
-						text: "Reset"
+						text: strings.trKey("common.reset")
 						theme: root.theme
 						padding: 12
 						font.pixelSize: 15
@@ -370,7 +370,7 @@ Page {
 					spacing: 12
 
 					Label {
-						text: "ICC Profiles"
+						text: strings.trKey("color.iccProfiles")
 						color: theme.text
 						font.pixelSize: 18
 						font.weight: Font.Medium
@@ -383,15 +383,15 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Family"; color: theme.subtext; Layout.preferredWidth: 160 }
+						Label { text: strings.trKey("color.family"); color: theme.subtext; Layout.preferredWidth: 160 }
 						Label {
 						    Layout.fillWidth: true
-						    text: currentFamilyKey() === "" ? "(none)" : currentFamilyKey()
+						    text: currentFamilyKey() === "" ? strings.trKey("common.none") : currentFamilyKey()
 						    color: theme.text
 						}
 					}
 
-					Label { text: "Family Default Output ICC"; color: theme.text; font.bold: true }
+					Label { text: strings.trKey("color.familyDefaultOutputIcc"); color: theme.text; font.bold: true }
 
 					RowLayout {
 						Layout.fillWidth: true
@@ -402,7 +402,7 @@ Page {
 						    Layout.fillWidth: true
 						    model: iccProfileModel
 						    textRole: "name"
-						    displayText: currentIndex >= 0 ? currentText : "(none)"
+						    displayText: currentIndex >= 0 ? currentText : strings.trKey("common.none")
 
 						    onActivated: {
 						        if (iccProfileModel.count <= 0) return
@@ -412,13 +412,13 @@ Page {
 						}
 
 						ThemedButton {
-						    text: "Upload"
+						    text: strings.trKey("common.upload")
 						    theme: root.theme
 						    onClicked: { iccDialogTarget = "familyDefaultOutput"; iccUploadDialog.open() }
 						}
 					}
 
-					Label { text: "Default Input ICC Profile"; color: theme.text; font.bold: true }
+					Label { text: strings.trKey("color.defaultInputIcc"); color: theme.text; font.bold: true }
 
 					RowLayout {
 						Layout.fillWidth: true
@@ -429,7 +429,7 @@ Page {
 						    Layout.fillWidth: true
 						    model: iccProfileModel
 						    textRole: "name"
-						    displayText: currentIndex >= 0 ? currentText : "(none)"
+						    displayText: currentIndex >= 0 ? currentText : strings.trKey("common.none")
 
 						    onActivated: {
 						        if (iccProfileModel.count <= 0) return
@@ -442,7 +442,7 @@ Page {
 						}
 
 						ThemedButton {
-						    text: "Upload"
+						    text: strings.trKey("common.upload")
 						    theme: root.theme
 						    onClicked: { iccDialogTarget = "defaultInput"; iccUploadDialog.open() }
 						}
@@ -454,17 +454,17 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Selected Printer"; color: theme.subtext; Layout.preferredWidth: 160 }
+						Label { text: strings.trKey("color.selectedPrinter"); color: theme.subtext; Layout.preferredWidth: 160 }
 						Label {
 						    Layout.fillWidth: true
-						    text: appState.selectedPrinter === "" ? "(none)" : appState.selectedPrinter
+						    text: appState.selectedPrinter === "" ? strings.trKey("common.none") : appState.selectedPrinter
 						    color: theme.text
 						    wrapMode: Text.WrapAnywhere
 						    opacity: 0.95
 						}
 					}
 
-					Label { text: "Printer Family Output Override"; color: theme.text; font.bold: true }
+					Label { text: strings.trKey("color.printerFamilyOutputOverride"); color: theme.text; font.bold: true }
 
 					RowLayout {
 						Layout.fillWidth: true
@@ -475,7 +475,7 @@ Page {
 						    Layout.fillWidth: true
 						    model: iccProfileModel
 						    textRole: "name"
-						    displayText: currentIndex >= 0 ? currentText : "(none)"
+						    displayText: currentIndex >= 0 ? currentText : strings.trKey("common.none")
 						    enabled: appState.selectedPrinter && appState.selectedPrinter.length > 0
 
 						    onActivated: {
@@ -486,7 +486,7 @@ Page {
 						}
 
 						ThemedButton {
-						    text: "Upload"
+						    text: strings.trKey("common.upload")
 						    theme: root.theme
 						    enabled: appState.selectedPrinter && appState.selectedPrinter.length > 0
 						    onClicked: { iccDialogTarget = "printerFamilyOutput"; iccUploadDialog.open() }
@@ -497,10 +497,10 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Effective Output"; color: theme.subtext; Layout.preferredWidth: 160 }
+						Label { text: strings.trKey("color.effectiveOutput"); color: theme.subtext; Layout.preferredWidth: 160 }
 						Label {
 						    Layout.fillWidth: true
-						    text: effectiveFamilyOutputPath() === "" ? "(none)" : effectiveFamilyOutputPath()
+						    text: effectiveFamilyOutputPath() === "" ? strings.trKey("common.none") : effectiveFamilyOutputPath()
 						    color: theme.text
 						    wrapMode: Text.WrapAnywhere
 						}
@@ -555,7 +555,7 @@ Page {
 					spacing: 12
 
 					Label {
-						text: "Linearization"
+						text: strings.trKey("color.linearization")
 						color: theme.text
 						font.pixelSize: 18
 						font.weight: Font.Medium
@@ -567,7 +567,7 @@ Page {
 					RowLayout {
 						Layout.fillWidth: true
 						Label {
-						    text: "Enable Linearization"
+						    text: strings.trKey("color.enableLinearization")
 						    color: theme.text
 						    Layout.preferredWidth: 180
 						}
@@ -581,25 +581,25 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Default XML"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.defaultXml"); color: theme.text; Layout.preferredWidth: 180 }
 
 						Label {
 						    Layout.fillWidth: true
 						    text: familyDefaultLinearizationPath() && familyDefaultLinearizationPath().length > 0
 						          ? familyDefaultLinearizationPath()
-						          : "(none)"
+						          : strings.trKey("common.none")
 						    color: theme.subtext
 						    wrapMode: Text.WrapAnywhere
 						}
 
 						ThemedButton {
-						    text: "Load"
+						    text: strings.trKey("common.load")
 						    theme: root.theme
 						    onClicked: familyLinearizationDialog.open()
 						}
 
 						ThemedButton {
-						    text: "Clear"
+						    text: strings.trKey("common.clear")
 						    theme: root.theme
 						    enabled: familyDefaultLinearizationPath().length > 0
 						    onClicked: {
@@ -613,26 +613,26 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Override XML"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.overrideXml"); color: theme.text; Layout.preferredWidth: 180 }
 
 						Label {
 						    Layout.fillWidth: true
 						    text: printerFamilyLinearizationPath() && printerFamilyLinearizationPath().length > 0
 						          ? printerFamilyLinearizationPath()
-						          : "(none)"
+						          : strings.trKey("common.none")
 						    color: theme.subtext
 						    wrapMode: Text.WrapAnywhere
 						}
 
 						ThemedButton {
-						    text: "Load"
+						    text: strings.trKey("common.load")
 						    theme: root.theme
 						    enabled: appState.selectedPrinter && appState.selectedPrinter.length > 0
 						    onClicked: printerLinearizationDialog.open()
 						}
 
 						ThemedButton {
-						    text: "Clear"
+						    text: strings.trKey("common.clear")
 						    theme: root.theme
 						    enabled: printerFamilyLinearizationPath().length > 0
 						    onClicked: {
@@ -648,20 +648,20 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Effective XML"; color: theme.subtext; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.effectiveXml"); color: theme.subtext; Layout.preferredWidth: 180 }
 
 						Label {
 						    Layout.fillWidth: true
 						    text: effectiveFamilyLinearizationPath() && effectiveFamilyLinearizationPath().length > 0
 						          ? effectiveFamilyLinearizationPath()
-						          : "(none)"
+						          : strings.trKey("common.none")
 						    color: theme.text
 						    wrapMode: Text.WrapAnywhere
 						}
 					}
 
 					Label {
-						text: "Default XML is used unless a printer override is set."
+						text: strings.trKey("color.defaultXmlHelp")
 						color: theme.subtext
 						wrapMode: Text.WordWrap
 						Layout.fillWidth: true
@@ -718,7 +718,7 @@ Page {
 					spacing: 12
 
 					Label {
-						text: "Dot Strategy Defaults"
+						text: strings.trKey("color.dotStrategyDefaults")
 						color: theme.text
 						font.pixelSize: 18
 						font.weight: Font.Medium
@@ -729,7 +729,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "Min Ink Threshold"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.minInkThreshold"); color: theme.text; Layout.preferredWidth: 180 }
 						SpinBox {
 						    Layout.fillWidth: true
 						    from: 0; to: 255
@@ -742,7 +742,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "Small Dot Threshold"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.smallDotThreshold"); color: theme.text; Layout.preferredWidth: 180 }
 						SpinBox {
 						    Layout.fillWidth: true
 						    from: 0; to: 255
@@ -755,7 +755,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "Medium Dot Threshold"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.mediumDotThreshold"); color: theme.text; Layout.preferredWidth: 180 }
 						SpinBox {
 						    Layout.fillWidth: true
 						    from: 0; to: 255
@@ -768,7 +768,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "Enable Promotion"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.enablePromotion"); color: theme.text; Layout.preferredWidth: 180 }
 						Switch {
 						    checked: colorManager.enablePromotion
 						    onToggled: colorManager.enablePromotion = checked
@@ -779,7 +779,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "CMY Highlight Floor Range"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.cmyFloorRange"); color: theme.text; Layout.preferredWidth: 180 }
 						SpinBox {
 						    Layout.fillWidth: true
 						    from: 0; to: 64
@@ -792,7 +792,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "CMY Highlight Floor Max"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.cmyFloorMax"); color: theme.text; Layout.preferredWidth: 180 }
 						SpinBox {
 						    Layout.fillWidth: true
 						    from: 0; to: 8
@@ -805,7 +805,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "K Highlight Floor Range"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.kFloorRange"); color: theme.text; Layout.preferredWidth: 180 }
 						SpinBox {
 						    Layout.fillWidth: true
 						    from: 0; to: 64
@@ -818,7 +818,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "K Highlight Floor Max"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.kFloorMax"); color: theme.text; Layout.preferredWidth: 180 }
 						SpinBox {
 						    Layout.fillWidth: true
 						    from: 0; to: 8
@@ -831,7 +831,7 @@ Page {
 
 					RowLayout {
 						Layout.fillWidth: true
-						Label { text: "Dot Swap (Highlights)"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.dotSwap"); color: theme.text; Layout.preferredWidth: 180 }
 						Switch {
 						    checked: colorManager.enableDotSwap
 						    onToggled: colorManager.enableDotSwap = checked
@@ -863,7 +863,7 @@ Page {
 					spacing: 12
 
 					Label {
-						text: "Multi-Ink Thresholds (Per-Mode)"
+						text: strings.trKey("color.multiInkThresholds")
 						color: theme.text
 						font.pixelSize: 18
 						font.weight: Font.Medium
@@ -875,7 +875,7 @@ Page {
 					// Hint when disabled
 					Label {
 						visible: !isModeSupportedForParams(root.selectedMode)
-						text: "Per-mode thresholds apply only to ink modes 5, 6, 7, 8, and 10."
+						text: strings.trKey("color.multiInkThresholds.help")
 						color: theme.subtext
 						wrapMode: Text.WordWrap
 						Layout.fillWidth: true
@@ -885,7 +885,7 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Ink Mode"; color: theme.text; Layout.preferredWidth: 180 }
+						Label { text: strings.trKey("color.inkMode"); color: theme.text; Layout.preferredWidth: 180 }
 
                         ComboBox {
                             id: modeCombo
@@ -1443,7 +1443,7 @@ Page {
 
 							RowLayout {
 								Layout.fillWidth: true
-								Label { text: "Enable Promotion"; Layout.preferredWidth: 180; color: theme.text }
+								Label { text: strings.trKey("color.enablePromotion"); Layout.preferredWidth: 180; color: theme.text }
 								Switch {
 								    checked: params.whiteEnablePromotion ?? false
 								    onToggled: root.setParam("whiteEnablePromotion", checked)
@@ -1559,7 +1559,7 @@ Page {
 
 							RowLayout {
 								Layout.fillWidth: true
-								Label { text: "Enable Promotion"; Layout.preferredWidth: 180; color: theme.text }
+								Label { text: strings.trKey("color.enablePromotion"); Layout.preferredWidth: 180; color: theme.text }
 								Switch {
 								    checked: params.varnishEnablePromotion ?? false
 								    onToggled: root.setParam("varnishEnablePromotion", checked)

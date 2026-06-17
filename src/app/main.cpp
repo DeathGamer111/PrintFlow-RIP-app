@@ -11,6 +11,7 @@
 #include <QStandardPaths>
 
 #include "PrintJobModel.h"
+#include "AppStrings.h"
 #include "ImageLoader.h"
 #include "PrintJobOutput.h"
 #include "PrintJobCMYK.h"
@@ -63,6 +64,7 @@ int main(int argc, char *argv[]) {
     
     // Backend components (owned by main; lifetime = entire app).
     PrintJobModel jobModel;
+    AppStrings appStrings;
     ImageLoader imageLoader;
     ImageEditor imageEditor;
     PrintJobOutput printJobOutput;
@@ -75,6 +77,7 @@ int main(int argc, char *argv[]) {
 
     // Expose C++ objects to QML (context properties for convenient access).
     engine.rootContext()->setContextProperty("jobModel", &jobModel);
+    engine.rootContext()->setContextProperty("strings", &appStrings);
     engine.rootContext()->setContextProperty("imageLoader", &imageLoader);
     engine.rootContext()->setContextProperty("imageEditor", &imageEditor);
     engine.rootContext()->setContextProperty("printJobOutput", &printJobOutput);

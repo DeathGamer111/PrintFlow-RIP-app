@@ -15,7 +15,7 @@ Page {
     // Tracks which ICC dropdown to update after a file is chosen.
     property string iccDialogTarget: "output" // "output" | "inputCMYK" | "deviceLink"
     property string linearizationDialogTarget: "printerLinearization"
-    property string sdkConnectionState: "Not connected"
+    property string sdkConnectionState: "notConnected"
     property string sdkSelectedPrinterName: ""
     property var sdkPrinterStatusInfo: ({})
     property var sdkPrinterFirmwareInfo: ({})
@@ -99,7 +99,7 @@ Page {
             nocaiDirectPrint.choosePrinter(appState.sdkSelectedPrinterIndex)
 
         const ok = nocaiDirectPrint.connectPrinter()
-        sdkConnectionState = ok ? "Connected" : "Connection failed"
+        sdkConnectionState = ok ? "connected" : "failed"
         toast.show(ok ? "SDK printer connected." : "ConnectPrinter failed: " + nocaiDirectPrint.lastError)
         if (ok)
             refreshSdkStatusAndInfo()
@@ -115,9 +115,9 @@ Page {
         sdkPrinterFirmwareInfo = info
 
         if (status.ok || info.ok)
-            sdkConnectionState = "Connected"
+            sdkConnectionState = "connected"
         else if (nocaiDirectPrint.lastError && nocaiDirectPrint.lastError.length > 0)
-            sdkConnectionState = "Unavailable"
+            sdkConnectionState = "unavailable"
     }
 
     function syncSdkPrinterCombo() {
@@ -361,7 +361,7 @@ Page {
             spacing: 10
 
             ThemedButton {
-                text: "Back"
+                text: strings.trKey("common.back")
                 theme: root.theme
                 Layout.preferredWidth: 88
                 padding: 12
@@ -372,7 +372,7 @@ Page {
             Item { Layout.fillWidth: true }
 
             Label {
-                text: "Printer Setup"
+                text: strings.trKey("printerSetup.title")
                 color: theme.text
                 font.pixelSize: 20
                 font.weight: Font.Medium
@@ -441,8 +441,8 @@ Page {
                     TabBar {
                         id: printerTabs
                         Layout.fillWidth: true
-                        TabButton { text: "Nocai Printer" }
-                        TabButton { text: "Network Printer" }
+                        TabButton { text: strings.trKey("printerSetup.nocaiPrinter") }
+                        TabButton { text: strings.trKey("printerSetup.networkPrinter") }
 
                         onCurrentIndexChanged: {
                             if (root._syncingTabs) return
@@ -468,7 +468,7 @@ Page {
                             Layout.fillWidth: true
 
                             Label {
-                                text: "Select your Nocai printer"
+                                text: strings.trKey("printerSetup.selectNocaiPrinter")
                                 color: theme.text
                                 font.weight: Font.Medium
                                 Layout.alignment: Qt.AlignHCenter
@@ -531,7 +531,7 @@ Page {
                             }
 
                             Label {
-                                text: "Note: The Nocai engine generates PRN files only."
+                                text: strings.trKey("printerSetup.notePrnOnly")
                                 color: theme.subtext
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
@@ -545,7 +545,7 @@ Page {
                                 Layout.fillWidth: true
                                 spacing: 8
 
-                                Label { text: "Ink Layout"; color: theme.text; font.bold: true }
+                                Label { text: strings.trKey("printerSetup.inkLayout"); color: theme.text; font.bold: true }
 
                                 ComboBox {
                                     id: inkLayoutCombo
@@ -583,14 +583,14 @@ Page {
 	                                Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
 
 	                                Label {
-	                                    text: "Direct Print SDK"
+	                                    text: strings.trKey("printerSetup.directPrintSdk")
 	                                    color: theme.text
 	                                    font.bold: true
 	                                    Layout.alignment: Qt.AlignHCenter
 	                                }
 
 	                                Label {
-	                                    text: "Output Mode"
+	                                    text: strings.trKey("printerSetup.outputMode")
 	                                    color: theme.text
 	                                    font.bold: true
 	                                    Layout.alignment: Qt.AlignHCenter
@@ -600,17 +600,28 @@ Page {
 	                                    id: directOutputModeCombo
 	                                    Layout.fillWidth: true
                                     model: ListModel {
-                                        ListElement { label: "PRN Generation"; value: "prn" }
-                                        ListElement { label: "Direct to Print"; value: "direct" }
+                                        ListElement { labelKey: "printerSetup.prnGeneration"; value: "prn" }
+                                        ListElement { labelKey: "printerSetup.directToPrint"; value: "direct" }
                                     }
-                                    textRole: "label"
+                                    delegate: ItemDelegate {
+                                        width: directOutputModeCombo.width
+                                        text: strings.trKey(labelKey)
+                                    }
+                                    contentItem: Text {
+                                        text: directOutputModeCombo.currentIndex >= 0
+                                              ? strings.trKey(directOutputModeCombo.model.get(directOutputModeCombo.currentIndex).labelKey)
+                                              : ""
+                                        color: root.theme.text
+                                        verticalAlignment: Text.AlignVCenter
+                                        elide: Text.ElideRight
+                                    }
                                     currentIndex: appState.multiInkOutputMode === "direct" ? 1 : 0
 
                                     onActivated: {
                                         const selected = model.get(currentIndex)
                                         appState.multiInkOutputMode = selected.value
                                         colorManager.setMultiInkOutputMode(selected.value)
-                                        toast.show("Output mode set to " + selected.label)
+                                        toast.show("Output mode set to " + strings.trKey(selected.labelKey))
                                     }
                                 }
 
@@ -629,7 +640,7 @@ Page {
                                     spacing: 10
 
 	                                    ThemedButton {
-	                                        text: "Refresh SDK Printers"
+	                                        text: strings.trKey("printerSetup.refreshSdkPrinters")
 	                                        theme: root.theme
 	                                        Layout.fillWidth: true
 	                                        Layout.preferredHeight: 40
@@ -637,7 +648,7 @@ Page {
 	                                    }
 
 	                                    Label {
-	                                        text: nocaiDirectPrint.available ? "SDK ready" : "SDK unavailable"
+	                                        text: nocaiDirectPrint.available ? strings.trKey("printerSetup.sdkReady") : strings.trKey("printerSetup.sdkUnavailable")
 	                                        color: nocaiDirectPrint.available ? theme.accent : theme.warning
 	                                        Layout.alignment: Qt.AlignVCenter
 	                                    }
@@ -665,13 +676,13 @@ Page {
 	                                    spacing: 10
 
 	                                    ThemedButton {
-	                                        text: root.sdkConnectionState === "Connected" ? "Connected" : "Connect"
+	                                        text: root.sdkConnectionState === "connected" ? strings.trKey("common.connected") : strings.trKey("common.connect")
 	                                        theme: root.theme
 	                                        Layout.fillWidth: true
 	                                        Layout.preferredHeight: 40
 	                                        background: Rectangle {
 	                                            radius: 6
-	                                            color: root.sdkConnectionState === "Connected" ? "#1F8A5B" : "#A33A3A"
+	                                            color: root.sdkConnectionState === "connected" ? "#1F8A5B" : "#A33A3A"
 	                                            border.width: 1
 	                                            border.color: root.theme.divider
 	                                        }
@@ -679,7 +690,7 @@ Page {
 	                                    }
 
 	                                    ThemedButton {
-	                                        text: "Refresh Status"
+	                                        text: strings.trKey("printerSetup.refreshStatus")
 	                                        theme: root.theme
 	                                        Layout.fillWidth: true
 	                                        Layout.preferredHeight: 40
@@ -689,12 +700,12 @@ Page {
 
 	                                Label {
 	                                    Layout.fillWidth: true
-	                                    text: "SDK Printer: " + (root.sdkSelectedPrinterName.length > 0 ? root.sdkSelectedPrinterName : "(none)") +
-	                                              "\nConnection: " + root.sdkConnectionState +
+	                                    text: "SDK Printer: " + (root.sdkSelectedPrinterName.length > 0 ? root.sdkSelectedPrinterName : strings.trKey("common.none")) +
+	                                              "\nConnection: " + (root.sdkConnectionState === "connected" ? strings.trKey("common.connected") : root.sdkConnectionState) +
 	                                              "\n" + (nocaiDirectPrint.lastError && nocaiDirectPrint.lastError.length > 0
 	                                                     ? nocaiDirectPrint.lastError
 	                                                     : nocaiDirectPrint.statusText())
-	                                    color: root.sdkConnectionState === "Connected" ? theme.subtext : theme.warning
+	                                    color: root.sdkConnectionState === "connected" ? theme.subtext : theme.warning
 	                                    wrapMode: Text.WordWrap
 	                                    horizontalAlignment: Text.AlignHCenter
 	                                }
@@ -843,7 +854,7 @@ Page {
                             Layout.fillWidth: true
 
                             Label {
-                                text: "Select a network printer"
+                                text: strings.trKey("printerSetup.selectNetworkPrinter")
                                 color: theme.text
                                 font.weight: Font.Medium
                             }
@@ -874,7 +885,7 @@ Page {
                             }
 
                             ThemedButton {
-                                text: "Refresh List"
+                                text: strings.trKey("printerSetup.refreshList")
                                 theme: root.theme
                                 padding: 12
                                 font.pixelSize: 15
@@ -905,7 +916,7 @@ Page {
 					spacing: 10
 
 					Label {
-						text: "DeviceLink (Overrides ICC)"
+						text: strings.trKey("printerSetup.deviceLink")
 						color: theme.text
 						font.pixelSize: 16
 						font.weight: Font.Medium
@@ -918,7 +929,7 @@ Page {
 						Layout.fillWidth: true
 						spacing: 10
 
-						Label { text: "Enable DeviceLink"; color: theme.text; Layout.fillWidth: true }
+						Label { text: strings.trKey("printerSetup.enableDeviceLink"); color: theme.text; Layout.fillWidth: true }
 
 						Switch {
 						    id: deviceLinkSwitch
@@ -940,7 +951,7 @@ Page {
 						    Layout.fillWidth: true
 						    model: deviceLinkModel
 						    textRole: "name"
-						    displayText: currentIndex >= 0 ? currentText : "(none)"
+						    displayText: currentIndex >= 0 ? currentText : strings.trKey("common.none")
 
 						    onActivated: {
 						        if (deviceLinkModel.count <= 0) return
@@ -950,7 +961,7 @@ Page {
 						}
 
 						ThemedButton {
-						    text: "Upload"
+						    text: strings.trKey("common.upload")
 						    theme: root.theme
 						    onClicked: {
 						        iccDialogTarget = "deviceLink"
@@ -984,7 +995,7 @@ Page {
                     spacing: 12
 
                     Label {
-                        text: "ICC Profiles (Nocai)"
+                        text: strings.trKey("printerSetup.iccProfiles")
                         color: theme.text
                         font.pixelSize: 18
                         font.weight: Font.Medium
@@ -993,7 +1004,7 @@ Page {
 
                     Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
 
-                    Label { text: "Default Output ICC Profile"; color: theme.text; font.bold: true }
+                    Label { text: strings.trKey("printerSetup.defaultOutputIcc"); color: theme.text; font.bold: true }
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -1004,7 +1015,7 @@ Page {
                             Layout.fillWidth: true
                             model: iccProfileModel
                             textRole: "name"
-                            displayText: currentIndex >= 0 ? currentText : "(none)"
+                            displayText: currentIndex >= 0 ? currentText : strings.trKey("common.none")
 
 							onActivated: {
 								if (!root.appState.usingSimulatedPrinter) return
@@ -1022,7 +1033,7 @@ Page {
                         }
 
                         ThemedButton {
-                            text: "Upload"
+                            text: strings.trKey("common.upload")
                             theme: root.theme
                             onClicked: { iccDialogTarget = "output"; iccUploadDialog.open() }
                         }
@@ -1032,7 +1043,7 @@ Page {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label { text: "Use Default Input CMYK"; color: theme.text; Layout.preferredWidth: 180 }
+                        Label { text: strings.trKey("printerSetup.useDefaultInputCmyk"); color: theme.text; Layout.preferredWidth: 180 }
 
                         Switch {
                             id: useInputCmykSwitch
@@ -1044,7 +1055,7 @@ Page {
                         }
                     }
 
-                    Label { text: "Default Input CMYK Profile"; color: theme.text; font.bold: true }
+                    Label { text: strings.trKey("printerSetup.defaultInputCmyk"); color: theme.text; font.bold: true }
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -1055,7 +1066,7 @@ Page {
                             Layout.fillWidth: true
                             model: iccProfileModel
                             textRole: "name"
-                            displayText: currentIndex >= 0 ? currentText : "(none)"
+                            displayText: currentIndex >= 0 ? currentText : strings.trKey("common.none")
                             enabled: useInputCmykSwitch.checked
 
                             onActivated: {
@@ -1068,7 +1079,7 @@ Page {
                         }
 
                         ThemedButton {
-                            text: "Upload"
+                            text: strings.trKey("common.upload")
                             theme: root.theme
                             enabled: useInputCmykSwitch.checked
                             onClicked: { iccDialogTarget = "inputCMYK"; iccUploadDialog.open() }
@@ -1077,7 +1088,7 @@ Page {
                     
                     Label {
 						visible: appState.usingMultiInkPrinter
-						text: "Linearization XML"
+						text: strings.trKey("printerSetup.linearizationXml")
 						color: theme.text
 						font.bold: true
 					}
@@ -1091,20 +1102,20 @@ Page {
 							Layout.fillWidth: true
 							text: {
 								const p = root.resolvedLinearizationForCurrentSelection()
-								return (p && p.length > 0) ? p : "(none)"
+								return (p && p.length > 0) ? p : strings.trKey("common.none")
 							}
 							color: theme.subtext
 							wrapMode: Text.WrapAnywhere
 						}
 
 						ThemedButton {
-							text: "Load"
+							text: strings.trKey("common.load")
 							theme: root.theme
 							onClicked: linearizationUploadDialog.open()
 						}
 
 						ThemedButton {
-							text: "Clear"
+							text: strings.trKey("common.clear")
 							theme: root.theme
 							enabled: root.resolvedLinearizationForCurrentSelection().length > 0
 							onClicked: {
@@ -1204,7 +1215,7 @@ Page {
 					spacing: 10
 
                     Label {
-                        text: "Selected Printer Details"
+                        text: strings.trKey("printerSetup.selectedPrinterDetails")
                         color: theme.text
                         font.pixelSize: 18
                         font.weight: Font.Medium
@@ -1279,7 +1290,7 @@ Page {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                             color: theme.subtext
-                            text: "SDK Printer: " + (root.sdkSelectedPrinterName.length > 0 ? root.sdkSelectedPrinterName : "(none)")
+                            text: "SDK Printer: " + (root.sdkSelectedPrinterName.length > 0 ? root.sdkSelectedPrinterName : strings.trKey("common.none"))
                         }
 
                         Label {

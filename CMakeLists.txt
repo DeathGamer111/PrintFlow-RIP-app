@@ -16,6 +16,7 @@ set(CMAKE_AUTOUIC ON)
 
 set(RIP_CORE_SOURCES
     src/app/main.cpp
+    src/core/AppStrings.h src/core/AppStrings.cpp
     src/core/AssetManager.h src/core/AssetManager.cpp
     src/core/ColorManagementManager.h src/core/ColorManagementManager.cpp
     src/core/IPrintOutputClient.h
@@ -165,6 +166,10 @@ set(RIP_ASSET_FILES
     resources/assets/sRGBProfile.icm
 )
 
+set(RIP_I18N_FILES
+    resources/i18n/strings.json
+)
+
 if(RIP_EMBED_BLUE_NOISE_MASKS)
     file(GLOB RIP_BLUE_NOISE_MASKS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/assets/blue_noise_mask_512_12000/*.tiff"
@@ -185,6 +190,7 @@ qt_add_resources(PrintFlow "app_resources"
     FILES
         ${RIP_QML_FILES}
         ${RIP_ASSET_FILES}
+        ${RIP_I18N_FILES}
 )
 
 set_target_properties(PrintFlow PROPERTIES
