@@ -12,44 +12,9 @@
 #include <type_traits>
 #include <vector>
 
-struct NocaiDirectPrintSettings
-{
-    int printerIndex = -1;
-    int printDirection = 0;
-    int printSpeed = 1;
-    int wcSequence = 0;
-    int eclosionGrade = 0;
-    int headSelect = 0;
-    int whiteInkPercent = 0;
-    int whiteInkPassCount = 0;
-    int varnishInkPercent = 0;
-    int varnishInkPassCount = 0;
-    int headVoltage = 512;
-    int disableUv0 = 0;
-    int disableUv1 = 0;
-    int disableUv2 = 0;
-    int disableUv3 = 0;
-    int disableUv4 = 0;
-    int disableUv5 = 0;
-    int carReset = 1;
-    int stripBlank = 1;
-    int blankDistance = 0;
-    int pass = 0;
-    int vsdMode = 0;
-};
+#include "IPrintOutputClient.h"
 
-struct NocaiDirectPrintRaster
-{
-    const std::vector<std::vector<std::vector<uint8_t>>>* packedLines = nullptr;
-    std::vector<int> channelOrder;
-    int width = 0;
-    int height = 0;
-    int xdpi = 0;
-    int ydpi = 0;
-    int bytesPerLine = 0;
-};
-
-class NocaiDirectPrintClient : public QObject
+class NocaiDirectPrintClient : public QObject, public IPrintOutputClient
 {
     Q_OBJECT
     Q_PROPERTY(bool available READ isAvailable NOTIFY statusChanged)
@@ -61,8 +26,9 @@ class NocaiDirectPrintClient : public QObject
 public:
     explicit NocaiDirectPrintClient(QObject* parent = nullptr);
 
-    bool isAvailable();
-    QString lastError() const;
+    bool isAvailable() override;
+    QString vendorName() const override;
+    QString lastError() const override;
     QString sdkRootPath() const;
     void setSdkRootPath(const QString& path);
     QVariantList printers() const;
@@ -107,8 +73,10 @@ public:
     Q_INVOKABLE QVariantMap getNewUVParamValues();
     Q_INVOKABLE bool setNewUVParamValues(const QVariantMap& settings, int type);
 
-    bool printPackedJob(const NocaiDirectPrintRaster& raster,
-                        const NocaiDirectPrintSettings& settings);
+    bool submitPreparedJob(const DirectPrintRaster& raster,
+                           const DirectPrintSettings& settings) override;
+    bool printPackedJob(const DirectPrintRaster& raster,
+                        const DirectPrintSettings& settings);
 
 signals:
     void statusChanged();
@@ -166,7 +134,7 @@ private:
     bool callSucceeded(int result, const QString& functionName);
     bool requireFunction(const void* fn, const QString& functionName);
     bool withSdkWorkingDirectory(const std::function<bool()>& callback);
-    JobSettings makeJobSettings(const NocaiDirectPrintSettings& settings) const;
+    JobSettings makeJobSettings(const DirectPrintSettings& settings) const;
     QVariantMap jobSettingsToMap(const JobSettings& settings) const;
     JobSettings jobSettingsFromMap(const QVariantMap& settings) const;
     QVariantMap alignmentValuesToMap(const AlignmentValues& values) const;

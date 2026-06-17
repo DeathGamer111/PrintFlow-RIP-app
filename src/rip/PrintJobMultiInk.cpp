@@ -332,7 +332,7 @@ void PrintJobMultiInk::setColorManager(ColorManagementManager* mgr)
 }
 
 
-void PrintJobMultiInk::setDirectPrintClient(NocaiDirectPrintClient* client)
+void PrintJobMultiInk::setDirectPrintClient(IPrintOutputClient* client)
 {
     m_directPrintClient = client;
 }
@@ -1439,7 +1439,7 @@ bool PrintJobMultiInk::sendDirectPrint(const RasterPayload& payload, const QVari
         return false;
     }
 
-    NocaiDirectPrintRaster raster;
+    DirectPrintRaster raster;
     raster.packedLines = &payload.packedLines;
     raster.channelOrder = payload.channelOrder;
     raster.width = payload.width;
@@ -1448,8 +1448,8 @@ bool PrintJobMultiInk::sendDirectPrint(const RasterPayload& payload, const QVari
     raster.ydpi = payload.ydpi;
     raster.bytesPerLine = payload.bytesPerLine;
 
-    const NocaiDirectPrintSettings settings = directPrintSettingsFromJob(jobMap, payload);
-    const bool ok = m_directPrintClient->printPackedJob(raster, settings);
+    const DirectPrintSettings settings = directPrintSettingsFromJob(jobMap, payload);
+    const bool ok = m_directPrintClient->submitPreparedJob(raster, settings);
     if (!ok) {
         qWarning() << "PrintJobMultiInk: direct print failed:"
                    << m_directPrintClient->lastError();
@@ -1459,8 +1459,8 @@ bool PrintJobMultiInk::sendDirectPrint(const RasterPayload& payload, const QVari
 }
 
 
-NocaiDirectPrintSettings PrintJobMultiInk::directPrintSettingsFromJob(const QVariantMap& jobMap,
-                                                                      const RasterPayload& payload) const
+DirectPrintSettings PrintJobMultiInk::directPrintSettingsFromJob(const QVariantMap& jobMap,
+                                                                 const RasterPayload& payload) const
 {
     QVariantMap settings;
     if (m_colorManager)
@@ -1474,7 +1474,7 @@ NocaiDirectPrintSettings PrintJobMultiInk::directPrintSettingsFromJob(const QVar
         return settings.value(key, fallback).toInt();
     };
 
-    NocaiDirectPrintSettings out;
+    DirectPrintSettings out;
     out.printerIndex = value("selectedPrinterIndex", -1);
     out.printDirection = value("printDirection", 0);
     out.printSpeed = value("printSpeed", 1);

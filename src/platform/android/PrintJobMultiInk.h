@@ -7,8 +7,9 @@
 
 #include <cstdint>
 
+#include "IPrintOutputClient.h"
+
 class ColorManagementManager;
-class NocaiDirectPrintClient;
 
 class PrintJobMultiInk : public QObject
 {
@@ -36,7 +37,7 @@ public slots:
 
 public:
     void setColorManager(ColorManagementManager* mgr);
-    void setDirectPrintClient(NocaiDirectPrintClient* client);
+    void setDirectPrintClient(IPrintOutputClient* client);
 
     Q_INVOKABLE bool loadInputImage(const QString& imagePath);
     Q_INVOKABLE bool applyICCConversion(const QString& inputProfile, const QString& outputProfile);
@@ -80,7 +81,7 @@ public:
 
 private:
     ColorManagementManager* m_colorManager = nullptr;
-    NocaiDirectPrintClient* m_directPrintClient = nullptr;
+    IPrintOutputClient* m_directPrintClient = nullptr;
     QVariantList m_profiles;
     QVariantList m_deviceLinks;
     QString m_defaultOutputICCPath;

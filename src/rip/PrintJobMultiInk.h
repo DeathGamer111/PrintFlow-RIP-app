@@ -21,10 +21,9 @@
 #include "MultiInkToneBuilder.h"
 #include "MultiInkScreenEngine.h"
 #include "MultiInkTypes.h"
-#include "NocaiDirectPrintClient.h"
+#include "IPrintOutputClient.h"
 
 class ColorManagementManager;
-class NocaiDirectPrintClient;
 
 class PrintJobMultiInk : public QObject
 {
@@ -53,7 +52,7 @@ public slots:
 public:
     // Manager wiring
     void setColorManager(ColorManagementManager* mgr);
-    void setDirectPrintClient(NocaiDirectPrintClient* client);
+    void setDirectPrintClient(IPrintOutputClient* client);
 
     // Pipeline entry points
     Q_INVOKABLE bool loadInputImage(const QString& imagePath);
@@ -136,14 +135,14 @@ private:
     bool writePRNFile(const RasterPayload& payload,
                       const QString& outputPath);
     bool sendDirectPrint(const RasterPayload& payload, const QVariantMap& jobMap);
-    NocaiDirectPrintSettings directPrintSettingsFromJob(const QVariantMap& jobMap, const RasterPayload& payload) const;
+    DirectPrintSettings directPrintSettingsFromJob(const QVariantMap& jobMap, const RasterPayload& payload) const;
 
 private:
     // Runtime mode/config
     QVariantMap m_modeParams;
     InkMode m_inkMode = InkMode::FourColor_YMCK;
     ColorManagementManager* m_colorManager = nullptr;
-    NocaiDirectPrintClient* m_directPrintClient = nullptr;
+    IPrintOutputClient* m_directPrintClient = nullptr;
 
     // Assets
     AssetManager m_assetManager;

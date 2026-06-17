@@ -159,6 +159,11 @@ bool NocaiDirectPrintClient::isAvailable()
     return ensureLoaded();
 }
 
+QString NocaiDirectPrintClient::vendorName() const
+{
+    return QStringLiteral("Vendor direct print");
+}
+
 QString NocaiDirectPrintClient::lastError() const
 {
     QMutexLocker locker(&m_mutex);
@@ -636,8 +641,14 @@ QString NocaiDirectPrintClient::statusText()
         : m_lastError;
 }
 
-bool NocaiDirectPrintClient::printPackedJob(const NocaiDirectPrintRaster& raster,
-                                            const NocaiDirectPrintSettings& settings)
+bool NocaiDirectPrintClient::submitPreparedJob(const DirectPrintRaster& raster,
+                                               const DirectPrintSettings& settings)
+{
+    return printPackedJob(raster, settings);
+}
+
+bool NocaiDirectPrintClient::printPackedJob(const DirectPrintRaster& raster,
+                                            const DirectPrintSettings& settings)
 {
     QMutexLocker locker(&m_mutex);
     if (!ensureLoaded())
@@ -896,7 +907,7 @@ QVariantMap NocaiDirectPrintClient::jobSettingsToMap(const JobSettings& settings
 NocaiDirectPrintClient::JobSettings
 NocaiDirectPrintClient::jobSettingsFromMap(const QVariantMap& settings) const
 {
-    NocaiDirectPrintSettings normalized;
+    DirectPrintSettings normalized;
     auto value = [&](const char* key, int def) {
         return settings.value(QString::fromUtf8(key), def).toInt();
     };
@@ -1056,7 +1067,7 @@ bool NocaiDirectPrintClient::withSdkWorkingDirectory(const std::function<bool()>
 }
 
 NocaiDirectPrintClient::JobSettings
-NocaiDirectPrintClient::makeJobSettings(const NocaiDirectPrintSettings& settings) const
+NocaiDirectPrintClient::makeJobSettings(const DirectPrintSettings& settings) const
 {
     JobSettings out;
     out.PrintDirection = static_cast<uint16_t>(clampInt(settings.printDirection, 0, 3));

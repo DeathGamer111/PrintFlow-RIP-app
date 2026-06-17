@@ -1,7 +1,5 @@
 #include "PrintJobMultiInk.h"
 
-#include "NocaiDirectPrintClient.h"
-
 #include <QDebug>
 
 namespace {
@@ -36,7 +34,7 @@ void PrintJobMultiInk::runDirectPrint(const QVariantMap& jobMap)
 }
 
 void PrintJobMultiInk::setColorManager(ColorManagementManager* mgr) { m_colorManager = mgr; }
-void PrintJobMultiInk::setDirectPrintClient(NocaiDirectPrintClient* client) { m_directPrintClient = client; }
+void PrintJobMultiInk::setDirectPrintClient(IPrintOutputClient* client) { m_directPrintClient = client; }
 
 bool PrintJobMultiInk::loadInputImage(const QString& imagePath) { Q_UNUSED(imagePath) return unavailable("Multi-ink image loading"); }
 bool PrintJobMultiInk::applyICCConversion(const QString& inputProfile, const QString& outputProfile) { Q_UNUSED(inputProfile) Q_UNUSED(outputProfile) return unavailable("Multi-ink ICC conversion"); }

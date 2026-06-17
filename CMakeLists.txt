@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(RIP_ANDROID_ENABLE_RIP_PROCESSING "Build Android with the native RIP dependency stack instead of boot-safe stubs." OFF)
 option(RIP_EMBED_BLUE_NOISE_MASKS "Embed local blue-noise TIFF masks into the Qt resource bundle." OFF)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Widgets QuickControls2 Xml)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Concurrent Widgets QuickControls2 Xml)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -18,6 +18,7 @@ set(RIP_CORE_SOURCES
     src/app/main.cpp
     src/core/AssetManager.h src/core/AssetManager.cpp
     src/core/ColorManagementManager.h src/core/ColorManagementManager.cpp
+    src/core/IPrintOutputClient.h
     src/core/PlatformCapabilities.h src/core/PlatformCapabilities.cpp
     src/core/PrintJob.h
     src/core/PrintJobModel.h src/core/PrintJobModel.cpp
@@ -198,3 +199,27 @@ install(TARGETS PrintFlow
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+if(NOT ANDROID)
+    enable_testing()
+
+    add_executable(PrintFlowDirectPrintClientTest
+        tests/DirectPrintClientUnavailableTest.cpp
+        src/core/IPrintOutputClient.h
+        src/vendor/nocai/NocaiDirectPrintClient.h
+        src/vendor/nocai/NocaiDirectPrintClient.cpp
+    )
+
+    target_include_directories(PrintFlowDirectPrintClientTest PRIVATE
+        src/core
+        src/vendor/nocai
+    )
+
+    target_link_libraries(PrintFlowDirectPrintClientTest
+        PRIVATE
+            Qt6::Core
+    )
+
+    add_test(NAME PrintFlowDirectPrintClientUnavailable
+             COMMAND PrintFlowDirectPrintClientTest)
+endif()
