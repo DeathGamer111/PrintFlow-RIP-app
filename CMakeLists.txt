@@ -5,13 +5,15 @@ project(PrintFlow VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+enable_testing()
+
 option(RIP_ANDROID_ENABLE_RIP_PROCESSING "Build Android with the native RIP dependency stack instead of boot-safe stubs." OFF)
 option(RIP_EMBED_BLUE_NOISE_MASKS "Embed local blue-noise TIFF masks into the Qt resource bundle." OFF)
 set(RIP_THEME "default" CACHE STRING "Built-in theme id to embed as the selected theme: default, nocai, or xante.")
 set(RIP_THEME_FILE "" CACHE FILEPATH "Optional custom theme JSON file to embed instead of a built-in selected theme.")
 set_property(CACHE RIP_THEME PROPERTY STRINGS default nocai xante)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Quick Concurrent Widgets QuickControls2 Xml)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick Concurrent Widgets QuickControls2 Test Xml)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -270,76 +272,5 @@ install(TARGETS PrintFlow
 )
 
 if(NOT ANDROID)
-    enable_testing()
-
-    add_executable(PrintFlowDirectPrintClientTest
-        tests/DirectPrintClientUnavailableTest.cpp
-        src/core/IPrintOutputClient.h
-        src/vendor/nocai/NocaiDirectPrintClient.h
-        src/vendor/nocai/NocaiDirectPrintClient.cpp
-    )
-
-    target_include_directories(PrintFlowDirectPrintClientTest PRIVATE
-        src/core
-        src/vendor/nocai
-    )
-
-    target_link_libraries(PrintFlowDirectPrintClientTest
-        PRIVATE
-            Qt6::Core
-    )
-
-    add_test(NAME PrintFlowDirectPrintClientUnavailable
-             COMMAND PrintFlowDirectPrintClientTest)
-
-    add_executable(PrintFlowNocaiPrnWriterTest
-        tests/NocaiPrnWriterTest.cpp
-        src/vendor/nocai/NocaiPrnWriter.h
-        src/vendor/nocai/NocaiPrnWriter.cpp
-    )
-
-    target_include_directories(PrintFlowNocaiPrnWriterTest PRIVATE
-        src/vendor/nocai
-    )
-
-    target_link_libraries(PrintFlowNocaiPrnWriterTest
-        PRIVATE
-            Qt6::Core
-    )
-
-    add_test(NAME PrintFlowNocaiPrnWriter
-             COMMAND PrintFlowNocaiPrnWriterTest)
-
-    add_executable(PrintFlowCMYKAssetManagerTest
-        tests/PrintJobCMYKAssetManagerTest.cpp
-        src/core/AssetManager.h src/core/AssetManager.cpp
-        src/core/ColorManagementManager.h src/core/ColorManagementManager.cpp
-        src/rip/PrintJobCMYK.h src/rip/PrintJobCMYK.cpp
-        src/vendor/nocai/NocaiPrnWriter.h src/vendor/nocai/NocaiPrnWriter.cpp
-    )
-
-    qt_add_resources(PrintFlowCMYKAssetManagerTest "cmyk_asset_test_resources"
-        PREFIX "/"
-        BASE "resources"
-        FILES
-            ${RIP_ASSET_FILES}
-    )
-
-    target_include_directories(PrintFlowCMYKAssetManagerTest PRIVATE
-        src/core
-        src/rip
-        src/vendor/nocai
-    )
-
-    target_link_libraries(PrintFlowCMYKAssetManagerTest
-        PRIVATE
-            Qt6::Core
-            Qt6::Concurrent
-            Qt6::Xml
-            PkgConfig::ImageMagick
-            PkgConfig::LCMS
-    )
-
-    add_test(NAME PrintFlowCMYKAssetManager
-             COMMAND PrintFlowCMYKAssetManagerTest)
+    add_subdirectory(tests)
 endif()

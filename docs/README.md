@@ -17,7 +17,7 @@ The source tree is split by responsibility:
 - `src/vendor/nocai/`: shared direct-print SDK loader/client.
 - `src/third_party/stb/`: third-party single-header image loader.
 - `resources/qml/` and `resources/assets/`: Qt Quick UI and bundled profiles/assets.
-- `packaging/linux/`: Linux desktop packaging metadata.
+- `resources/packaging/linux/`: Linux desktop packaging metadata.
 - `android/`: Qt Android package template.
 
 ## Build Notes
@@ -27,6 +27,12 @@ Linux builds use CMake with Qt, CUPS, Magick++, and Little CMS:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
+```
+
+Run local tests with:
+
+```bash
+scripts/run_tests.sh
 ```
 
 Android builds use Qt's Android `qt-cmake` wrapper and the `apk` target through `scripts/dev_build_android.sh`. The first milestone is APK boot in an emulator; direct-print SDK packaging is supported when `DIRECT_PRINT_SDK_ROOT` points to a local ignored SDK folder containing the vendor direct-print SDK library.

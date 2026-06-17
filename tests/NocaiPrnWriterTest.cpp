@@ -1,9 +1,9 @@
 #include "NocaiPrnWriter.h"
 
 #include <QByteArray>
-#include <QCoreApplication>
 #include <QFile>
 #include <QTemporaryDir>
+#include <QtTest/QtTest>
 #include <QUrl>
 
 #include <cstring>
@@ -26,22 +26,34 @@ bool readFile(const QString& path, QByteArray& out)
 }
 }
 
-int main(int argc, char** argv)
+class NocaiPrnWriterTest : public QObject
 {
-    QCoreApplication app(argc, argv);
+    Q_OBJECT
 
+private slots:
+    void packs2BppRows();
+    void writesStandardCmykPrn();
+    void writesMultiInkPrn();
+};
+
+void NocaiPrnWriterTest::packs2BppRows()
+{
     const std::vector<std::vector<uint8_t>> dotMap = {
         {0, 1, 2, 3, 1}
     };
     const auto packed = NocaiPrnWriter::packTo2Bpp(dotMap, 5, 1);
-    if (packed.size() != 1 || packed[0].size() != 4)
-        return 1;
-    if (packed[0][0] != 0x1b || packed[0][1] != 0x40 || packed[0][2] != 0x00 || packed[0][3] != 0x00)
-        return 2;
+    QCOMPARE(packed.size(), size_t(1));
+    QCOMPARE(packed[0].size(), size_t(4));
+    QCOMPARE(packed[0][0], uint8_t(0x1b));
+    QCOMPARE(packed[0][1], uint8_t(0x40));
+    QCOMPARE(packed[0][2], uint8_t(0x00));
+    QCOMPARE(packed[0][3], uint8_t(0x00));
+}
 
+void NocaiPrnWriterTest::writesStandardCmykPrn()
+{
     QTemporaryDir tempDir;
-    if (!tempDir.isValid())
-        return 3;
+    QVERIFY(tempDir.isValid());
 
     std::vector<std::vector<std::vector<uint8_t>>> channels(4);
     for (int ch = 0; ch < 4; ++ch)
@@ -56,22 +68,32 @@ int main(int argc, char** argv)
             1,
             720,
             720,
-            QUrl::fromLocalFile(standardPath).toString()))
-        return 4;
+            QUrl::fromLocalFile(standardPath).toString()));
 
     QByteArray standardData;
-    if (!readFile(standardPath, standardData))
-        return 5;
-    if (standardData.size() != 64)
-        return 6;
-    if (readU32(standardData, 0) != 0x00005555u || readU32(standardData, 4) != 720u || readU32(standardData, 8) != 720u)
-        return 7;
-    if (static_cast<unsigned char>(standardData[48]) != 3 || static_cast<unsigned char>(standardData[52]) != 2 ||
-        static_cast<unsigned char>(standardData[56]) != 1 || static_cast<unsigned char>(standardData[60]) != 4)
-        return 8;
+    QVERIFY(readFile(standardPath, standardData));
+    QCOMPARE(standardData.size(), 64);
+    QCOMPARE(readU32(standardData, 0), 0x00005555u);
+    QCOMPARE(readU32(standardData, 4), 720u);
+    QCOMPARE(readU32(standardData, 8), 720u);
+    QCOMPARE(static_cast<unsigned char>(standardData[48]), 3);
+    QCOMPARE(static_cast<unsigned char>(standardData[52]), 2);
+    QCOMPARE(static_cast<unsigned char>(standardData[56]), 1);
+    QCOMPARE(static_cast<unsigned char>(standardData[60]), 4);
+}
+
+void NocaiPrnWriterTest::writesMultiInkPrn()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+
+    std::vector<std::vector<std::vector<uint8_t>>> channels(4);
+    for (int ch = 0; ch < 4; ++ch)
+        channels[ch] = {std::vector<uint8_t>(4, static_cast<uint8_t>(ch + 1))};
+    const std::vector<int> channelOrder = {2, 1, 0, 3};
 
     const QString multiInkPath = tempDir.filePath(QStringLiteral("multiink.prn"));
-    if (!NocaiPrnWriter::writeMultiInkPrn(
+    QVERIFY(NocaiPrnWriter::writeMultiInkPrn(
             channels,
             channelOrder,
             NocaiPrnWriter::MultiInkMode::FourColorYMCK,
@@ -80,23 +102,19 @@ int main(int argc, char** argv)
             720,
             600,
             4,
-            QUrl::fromLocalFile(multiInkPath).toString()))
-        return 9;
+            QUrl::fromLocalFile(multiInkPath).toString()));
 
     QByteArray multiInkData;
-    if (!readFile(multiInkPath, multiInkData))
-        return 10;
-    if (multiInkData.size() != 96)
-        return 11;
-    if (QByteArray(multiInkData.constData(), 6) != QByteArray("inkjet", 6))
-        return 12;
-    if (static_cast<unsigned char>(multiInkData[48]) != 2 || static_cast<unsigned char>(multiInkData[49]) != 4)
-        return 13;
-    if (static_cast<unsigned char>(multiInkData[64]) != 'Y' ||
-        static_cast<unsigned char>(multiInkData[65]) != 'M' ||
-        static_cast<unsigned char>(multiInkData[66]) != 'C' ||
-        static_cast<unsigned char>(multiInkData[67]) != 'K')
-        return 14;
-
-    return 0;
+    QVERIFY(readFile(multiInkPath, multiInkData));
+    QCOMPARE(multiInkData.size(), 96);
+    QCOMPARE(QByteArray(multiInkData.constData(), 6), QByteArray("inkjet", 6));
+    QCOMPARE(static_cast<unsigned char>(multiInkData[48]), 2);
+    QCOMPARE(static_cast<unsigned char>(multiInkData[49]), 4);
+    QCOMPARE(static_cast<unsigned char>(multiInkData[64]), static_cast<unsigned char>('Y'));
+    QCOMPARE(static_cast<unsigned char>(multiInkData[65]), static_cast<unsigned char>('M'));
+    QCOMPARE(static_cast<unsigned char>(multiInkData[66]), static_cast<unsigned char>('C'));
+    QCOMPARE(static_cast<unsigned char>(multiInkData[67]), static_cast<unsigned char>('K'));
 }
+
+QTEST_GUILESS_MAIN(NocaiPrnWriterTest)
+#include "NocaiPrnWriterTest.moc"

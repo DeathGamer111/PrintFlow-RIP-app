@@ -1,34 +1,38 @@
 #include "PrintJobCMYK.h"
 
-#include <QCoreApplication>
 #include <QFileInfo>
+#include <QtTest/QtTest>
 #include <QTemporaryDir>
 #include <QVariantList>
 #include <QVariantMap>
 
-int main(int argc, char** argv)
+class PrintJobCMYKAssetManagerTest : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void preparesBundledProfilesIntoRuntimePath();
+};
+
+void PrintJobCMYKAssetManagerTest::preparesBundledProfilesIntoRuntimePath()
 {
     QTemporaryDir dataHome;
-    if (!dataHome.isValid())
-        return 1;
+    QVERIFY(dataHome.isValid());
 
     qputenv("XDG_DATA_HOME", dataHome.path().toUtf8());
-
-    QCoreApplication app(argc, argv);
 
     PrintJobCMYK printJob;
     printJob.prepareAssets();
 
     const QString outputProfile = printJob.getDefaultOutputICCProfile();
     const QString inputProfile = printJob.getDefaultInputCMYKProfile();
-    if (outputProfile.isEmpty() || inputProfile.isEmpty())
-        return 2;
-    if (!QFileInfo::exists(outputProfile) || !QFileInfo::exists(inputProfile))
-        return 3;
+    QVERIFY(!outputProfile.isEmpty());
+    QVERIFY(!inputProfile.isEmpty());
+    QVERIFY(QFileInfo::exists(outputProfile));
+    QVERIFY(QFileInfo::exists(inputProfile));
 
     const QVariantList profiles = printJob.getAvailableICCProfiles();
-    if (profiles.size() < 4)
-        return 4;
+    QVERIFY(profiles.size() >= 4);
 
     bool sawSrgb = false;
     bool sawCmyk = false;
@@ -41,12 +45,13 @@ int main(int argc, char** argv)
             sawCmyk = true;
     }
 
-    if (!sawSrgb || !sawCmyk)
-        return 5;
+    QVERIFY(sawSrgb);
+    QVERIFY(sawCmyk);
 
     printJob.cleanupRuntimeAssets();
-    if (QFileInfo::exists(outputProfile) || QFileInfo::exists(inputProfile))
-        return 6;
-
-    return 0;
+    QVERIFY(!QFileInfo::exists(outputProfile));
+    QVERIFY(!QFileInfo::exists(inputProfile));
 }
+
+QTEST_GUILESS_MAIN(PrintJobCMYKAssetManagerTest)
+#include "PrintJobCMYKAssetManagerTest.moc"

@@ -46,8 +46,8 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 .
 |-- android/                       Qt Android package template
 |-- docs/                          Flowchart and software design document
-|-- packaging/linux/               Linux desktop/AppImage metadata
 |-- resources/assets/              Bundled ICC profiles, linearization XML, and logo
+|-- resources/packaging/linux/     Linux desktop/AppImage metadata
 |-- resources/qml/                 Qt Quick user interface
 |-- scripts/                       Linux, Android, packaging, and policy helper scripts
 |-- src/app/                       Application bootstrap
@@ -58,6 +58,16 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 |-- src/third_party/stb/           Third-party single-header image loader
 `-- src/vendor/nocai/              Vendor integration adapter for direct-print support
 ```
+
+## Tests
+
+Run the local Linux test suite with:
+
+```bash
+scripts/run_tests.sh
+```
+
+The script configures `build-tests`, builds the app and test executables, then runs `ctest --output-on-failure`. Tests do not require `DIRECT_PRINT_SDK_ROOT`, blue-noise mask fixtures, or an Android device.
 
 Important QML views include:
 

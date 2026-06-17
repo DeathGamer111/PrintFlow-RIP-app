@@ -25,7 +25,7 @@ sudo apt-get install -y \
     qml6-module-qtquick-dialogs libqt6widgets6 qml6-module-qtpositioning \
     qml6-module-qtcore qml6-module-qtquick-window qml-module-qtquick-shapes \
     qt5-qmltooling-plugins qt6-image-formats-plugins libqt6widgets6 \
-    libqt6svg6 libqt6svgwidgets6
+    libqt6svg6 libqt6svgwidgets6 libqt6test6
 
 echo "⬇️  Checking for linuxdeployqt..."
 if [[ ! -x "${LINUXDEPLOYQT}" ]]; then
@@ -48,7 +48,7 @@ mkdir -p "${APPDIR}/usr/bin" \
          "${APPDIR}/usr/share/${APP_NAME}/assets"
 
 cp "${BUILD_DIR}/PrintFlow" "${APPDIR}/usr/bin/"
-cp packaging/linux/printflow.desktop "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
+cp resources/packaging/linux/printflow.desktop "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
 
 if [[ -f "resources/assets/logo.png" ]]; then
     cp resources/assets/logo.png "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"
