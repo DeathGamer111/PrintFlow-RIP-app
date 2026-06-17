@@ -13,12 +13,13 @@ Usage: ./Dev_Build_App.sh [mode]
 
 Modes:
   --linux                 Build/run the Linux desktop app
-  --android-setup         Install Android SDK, NDK, emulator, and Qt Android kits
-  --android-build         Build the Android APK
-  --android-run           Build, install, and launch the APK on the emulator
-  --android-setup-build   Install Android dependencies, then build the APK
+  --android-setup         Install or repair Android SDK, NDK, emulator, and Qt Android kits
+  --android               Build, install, and launch the Android APK on the emulator
 
 Legacy aliases:
+  --android-build         Build the Android APK only
+  --android-run           Same as --android
+  --android-setup-build   Install Android dependencies, then build the APK
   --setup-android-deps    Same as --android-setup-build
   --skip-android-deps     Same as --linux
 EOF
@@ -32,11 +33,14 @@ for arg in "$@"; do
         --android-setup)
             mode="android-setup"
             ;;
+        --android)
+            mode="android"
+            ;;
         --android-build)
             mode="android-build"
             ;;
         --android-run)
-            mode="android-run"
+            mode="android"
             ;;
         --android-setup-build|--setup-android-deps)
             mode="android-setup-build"
@@ -56,7 +60,7 @@ done
 
 choose_mode() {
     if [[ ! -t 0 ]]; then
-        printf 'No build mode selected in noninteractive mode; defaulting to Linux. Use --android-build or --android-run for Android.\n'
+        printf 'No build mode selected in noninteractive mode; defaulting to Linux. Use --android for Android.\n'
         mode="linux"
         return
     fi
@@ -64,10 +68,8 @@ choose_mode() {
     cat <<EOF
 Select PrintFlow build target:
   1) Linux desktop build
-  2) Android dependency setup only
-  3) Android APK build
-  4) Android build + install + run on emulator
-  5) Android dependency setup + APK build
+  2) Android setup / repair environment
+  3) Android build + install + run on emulator
   q) Quit
 EOF
     printf 'Choice [1]: '
@@ -76,9 +78,7 @@ EOF
     case "${reply:-1}" in
         1) mode="linux" ;;
         2) mode="android-setup" ;;
-        3) mode="android-build" ;;
-        4) mode="android-run" ;;
-        5) mode="android-setup-build" ;;
+        3) mode="android" ;;
         q|Q) exit 0 ;;
         *) printf 'Unknown choice: %s\n' "${reply}" >&2; exit 1 ;;
     esac
@@ -96,7 +96,7 @@ case "${mode}" in
     android-build)
         exec "${SCRIPT_DIR}/scripts/dev_build_android.sh" "${pass_args[@]}"
         ;;
-    android-run)
+    android)
         exec "${SCRIPT_DIR}/scripts/android_build_install_run.sh" "${pass_args[@]}"
         ;;
     android-setup-build)
