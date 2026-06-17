@@ -67,7 +67,7 @@ qt_add_executable(appRIPPrinterApp
     ${RIP_CORE_SOURCES}
     ${RIP_PROCESSING_SOURCES}
     ${RIP_PLATFORM_SOURCES}
-    stb_image.h
+    src/vendor/stb/stb_image.h
 )
 
 target_include_directories(appRIPPrinterApp PRIVATE
@@ -75,6 +75,7 @@ target_include_directories(appRIPPrinterApp PRIVATE
     src/app
     src/core
     src/vendor/nocai
+    src/vendor/stb
 )
 
 if(ANDROID AND NOT RIP_ANDROID_ENABLE_RIP_PROCESSING)

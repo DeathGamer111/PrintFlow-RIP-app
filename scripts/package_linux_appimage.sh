@@ -48,7 +48,7 @@ mkdir -p "${APPDIR}/usr/bin" \
          "${APPDIR}/usr/share/${APP_NAME}/assets"
 
 cp "${BUILD_DIR}/appRIPPrinterApp" "${APPDIR}/usr/bin/"
-cp rip-app.desktop "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
+cp packaging/linux/rip-app.desktop "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
 
 if [[ -f "resources/assets/logo.png" ]]; then
     cp resources/assets/logo.png "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"

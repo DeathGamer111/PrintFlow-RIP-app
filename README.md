@@ -45,6 +45,7 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 .
 |-- android/                       Qt Android package template
 |-- docs/                          Flowchart and software design document
+|-- packaging/linux/               Linux desktop/AppImage metadata
 |-- resources/assets/              Bundled ICC profiles, linearization XML, and logo
 |-- resources/qml/                 Qt Quick user interface
 |-- scripts/                       Linux, Android, packaging, and policy helper scripts
@@ -53,7 +54,8 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 |-- src/platform/android/          Android-safe platform facades for APK boot
 |-- src/platform/desktop/          Linux desktop integrations such as CUPS
 |-- src/rip/                       Native RIP, color, screening, and PRN pipeline
-`-- src/vendor/nocai/              Shared Nocai direct-print SDK loader/client
+|-- src/vendor/nocai/              Shared Nocai direct-print SDK loader/client
+`-- src/vendor/stb/                Third-party single-header image loader
 ```
 
 Important QML views include:

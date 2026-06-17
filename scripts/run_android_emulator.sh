@@ -12,6 +12,17 @@ fail() {
     exit 1
 }
 
+prepend_if_dir() {
+    if [[ -d "$1" ]]; then
+        PATH="$1:${PATH}"
+    fi
+}
+
+if [[ -n "${ANDROID_SDK_ROOT:-}" ]]; then
+    prepend_if_dir "${ANDROID_SDK_ROOT}/platform-tools"
+    prepend_if_dir "${ANDROID_SDK_ROOT}/emulator"
+fi
+
 command -v adb >/dev/null 2>&1 || fail "Missing command: adb"
 command -v emulator >/dev/null 2>&1 || fail "Missing command: emulator"
 

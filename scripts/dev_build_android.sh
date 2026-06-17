@@ -18,12 +18,23 @@ require_path() {
     [[ -e "$2" ]] || fail "$1 does not exist: $2"
 }
 
+prepend_if_dir() {
+    if [[ -d "$1" ]]; then
+        PATH="$1:${PATH}"
+    fi
+}
+
 [[ -n "${QT_ANDROID_CMAKE:-}" ]] || fail "Set QT_ANDROID_CMAKE to the Qt Android qt-cmake path, for example ~/Qt/6.x.x/android_arm64_v8a/bin/qt-cmake"
 require_path "QT_ANDROID_CMAKE" "${QT_ANDROID_CMAKE}"
 [[ -n "${ANDROID_SDK_ROOT:-}" ]] || fail "Set ANDROID_SDK_ROOT to your Android SDK path"
 require_path "ANDROID_SDK_ROOT" "${ANDROID_SDK_ROOT}"
 [[ -n "${ANDROID_NDK_ROOT:-}" ]] || fail "Set ANDROID_NDK_ROOT to your Android NDK path"
 require_path "ANDROID_NDK_ROOT" "${ANDROID_NDK_ROOT}"
+
+prepend_if_dir "${ANDROID_SDK_ROOT}/platform-tools"
+prepend_if_dir "${ANDROID_SDK_ROOT}/emulator"
+prepend_if_dir "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin"
+prepend_if_dir "${ANDROID_NDK_ROOT}/prebuilt/linux-x86_64/bin"
 
 require_command java
 require_command ninja
