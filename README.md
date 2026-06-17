@@ -1,17 +1,19 @@
 # PrintFlow
 
-PrintFlow is a Qt 6 raster image processing application for preparing and outputting print jobs. It combines job management, image inspection/editing, imposition controls, ICC-based color conversion, stochastic screening, dot strategy tuning, and PRN generation for production print workflows.
+PrintFlow is a Qt 6 raster image processing application for preparing print jobs, previewing and editing artwork, managing printer settings, and generating raster/PRN output through pluggable vendor backends.
 
-The current codebase is focused on Linux desktop development with CMake, CUPS, ImageMagick, and Little CMS.
+The current codebase is focused on Linux desktop development with CMake, CUPS, ImageMagick, and Little CMS. Android APK support is available for emulator boot testing and physical-device packaging work.
 
 ## Current Status
 
-- Active branch: `android-apk-prep`
+- Active branch: `robust-testing-suite`
 - Build system: CMake
 - UI framework: Qt Quick/QML
 - Main development build script: `./Dev_Build_App.sh`
 - Primary executable target: `PrintFlow`
-- Base product identity: `PrintFlow`; customer/vendor display branding belongs in theme configuration.
+- Linux desktop status: builds and runs with the native RIP pipeline, CUPS integration, ImageMagick, Little CMS, theme resources, string resources, and the local test suite.
+- Android APK status: x86_64 emulator builds use boot-safe Android facades without the direct-print SDK; arm64-v8a physical-device builds can package a local vendor direct-print SDK when `DIRECT_PRINT_SDK_ROOT` is set.
+- Base product identity: `PrintFlow`; customer or vendor display branding belongs in theme configuration.
 
 ## Features
 
@@ -19,13 +21,14 @@ The current codebase is focused on Linux desktop development with CMake, CUPS, I
 - Image loading, validation, metadata extraction, and PDF preview rendering through ImageMagick.
 - Image editing tools for crop, rotate, flip, resize, color adjustment, blur, sepia, vignette, swirl, implode, text, rectangle drawing, undo, and redo.
 - Imposition view for positioning artwork on the selected media.
-- Printer setup flow for CUPS printers, simulated Nocai output, and X-36NC multi-ink output.
+- Printer setup flow for desktop printers, prepared PRN output, and optional vendor direct-print workflows.
 - ICC profile handling through Little CMS, including bundled CMYK and multi-ink output profiles.
 - Color-management settings for default input/output profiles, printer-specific profiles, profile families, and persisted dot strategy settings.
-- Nocai PRN generation with 2-bit dot classification, stochastic screening, and dot promotion controls.
+- PRN generation with 2-bit dot classification, stochastic screening, and dot promotion controls.
 - Multi-ink PRN generation with 4, 5, 6, 7, 8, and 10 channel ink layouts.
 - Linearization support using bundled XML presets.
 - Runtime asset preparation for bundled ICC profiles, linearization files, logo assets, and local blue-noise masks.
+- Theme and string-resource systems for build-time branding and runtime language selection.
 
 ## Supported Ink Layouts
 
@@ -38,8 +41,6 @@ The multi-ink backend currently supports:
 - 8 color: `Y M C K + Light Magenta + Light Cyan + Light Black + Light Light Black`
 - 10 color: `Y M C K + Light Magenta + Light Cyan + Light Black + Light Light Black + White + Varnish`
 
-The app defaults to the X-36NC photo-printer style multi-ink workflow and prepares the required runtime assets on startup.
-
 ## Project Layout
 
 ```text
@@ -47,16 +48,18 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 |-- android/                       Qt Android package template
 |-- docs/                          Flowchart and software design document
 |-- resources/assets/              Bundled ICC profiles, linearization XML, and logo
+|-- resources/i18n/                Runtime string resources
 |-- resources/packaging/linux/     Linux desktop/AppImage metadata
 |-- resources/qml/                 Qt Quick user interface
+|-- resources/themes/              Built-in theme JSON and theme assets
 |-- scripts/                       Linux, Android, packaging, and policy helper scripts
 |-- src/app/                       Application bootstrap
-|-- src/core/                      Shared models, settings, assets, and capabilities
+|-- src/core/                      Shared models, settings, assets, strings, themes, and capabilities
 |-- src/platform/android/          Android-safe platform facades for APK boot
 |-- src/platform/desktop/          Linux desktop integrations such as CUPS
 |-- src/rip/                       Native RIP, color, screening, and PRN pipeline
 |-- src/third_party/stb/           Third-party single-header image loader
-`-- src/vendor/nocai/              Vendor integration adapter for direct-print support
+`-- src/vendor/nocai/              Isolated direct-print vendor adapter
 ```
 
 ## Tests
@@ -67,7 +70,7 @@ Run the local Linux test suite with:
 scripts/run_tests.sh
 ```
 
-The script configures `build-tests`, builds the app and test executables, then runs `ctest --output-on-failure`. Tests do not require `DIRECT_PRINT_SDK_ROOT`, blue-noise mask fixtures, or an Android device.
+The script configures `build-tests`, builds the app and test executables, then runs `ctest --output-on-failure`. Tests cover the job model, asset/platform helpers, string resources, theme loading, RIP pipeline behavior, Android-safe stubs, and vendor isolation. They do not require `DIRECT_PRINT_SDK_ROOT`, blue-noise mask fixtures, or an Android device.
 
 Important QML views include:
 
@@ -77,6 +80,7 @@ Important QML views include:
 - `resources/qml/ImageEditorView.qml`
 - `resources/qml/ImpositionView.qml`
 - `resources/qml/PrinterSetupView.qml`
+- `resources/qml/PrinterMaintenanceView.qml`
 - `resources/qml/ColorManagementView.qml`
 
 ## Assets
@@ -94,7 +98,9 @@ Large blue-noise mask directories are intentionally ignored by Git:
 resources/assets/blue_noise_mask_*/**
 ```
 
-For local builds that generate multi-ink output, the app expects the `resources/assets/blue_noise_mask_512_12000/` directory to exist locally with the mask TIFF files used by `scripts/dev_build_linux.sh`. The masks can be embedded into Qt resources with `-DRIP_EMBED_BLUE_NOISE_MASKS=ON`, but the default leaves them as local runtime assets to avoid very large generated resource objects.
+For local builds that generate multi-ink output, the app expects `resources/assets/blue_noise_mask_512_12000/` to exist locally with the mask TIFF files used by `scripts/dev_build_linux.sh`. The masks can be embedded into Qt resources with `-DRIP_EMBED_BLUE_NOISE_MASKS=ON`, but the default leaves them as local runtime assets to avoid very large generated resource objects.
+
+Theme assets live under `resources/themes/<theme-id>/assets/` or `resources/vendor/<vendor-id>/assets/` and are compiled into Qt resources when referenced by theme JSON. Vendor SDK drops and local vendor assets that are not safe to publish should remain outside tracked files or under ignored local paths.
 
 ## Requirements
 
@@ -136,13 +142,13 @@ Run the app with:
 
 ## Theme Builds
 
-PrintFlow supports build-time theme selection for normal/basic and custom-branded builds. If no theme variable is set, the default/basic theme is used.
+PrintFlow supports build-time theme selection for normal/basic and customer-branded builds. If no theme variable is set, the default/basic theme is used.
 
-Built-in themes:
+Built-in theme ids:
 
 - `default`: neutral PrintFlow branding.
-- `nocai`: Nocai-oriented colors using public brand cues from Nocai printer materials.
-- `xante`: Xante/iQueue-oriented colors using public Xante and iQueue software cues.
+- `nocai`: vendor-oriented direct-print theme.
+- `xante`: vendor-oriented production workflow theme.
 
 Build with a built-in theme:
 
@@ -198,22 +204,27 @@ Custom theme JSON must include `id`, `displayName`, and `appName`. Other fields 
 }
 ```
 
-Theme assets may live under `resources/themes/<theme-id>/assets/` or `resources/vendor/<vendor-id>/assets/` and can be referenced with `qrc:/...` paths. Custom file builds fail during CMake configure when the file is missing, invalid JSON, or missing required identity fields.
+Custom file builds fail during CMake configure when the file is missing, invalid JSON, or missing required identity fields.
 
 ## Android Build
 
-The first Android milestone is an APK that builds, installs, and boots in an emulator. Android builds default to boot-safe facades for CUPS and the native RIP pipeline. The shared direct-print SDK client is still compiled on Android and will package the vendor direct-print SDK library when `DIRECT_PRINT_SDK_ROOT` points at a local ignored SDK folder containing it.
+The Android milestone is an APK that builds, installs, and boots in an emulator while keeping desktop-only dependencies behind platform facades. Android x86_64 emulator builds use safe facades for CUPS and the native RIP dependency stack and do not require a direct-print SDK.
 
-Required environment variables:
+Required environment variables for emulator builds:
 
 ```bash
 export QT_ANDROID_CMAKE="$HOME/Qt/<version>/android_x86_64/bin/qt-cmake"
 export ANDROID_SDK_ROOT="$PWD/.android-sdk"
 export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/<version>"
+```
+
+Optional environment variable for physical-device direct-print packaging:
+
+```bash
 export DIRECT_PRINT_SDK_ROOT="/path/to/local/vendor/sdk/drop"
 ```
 
-For emulator builds on a Linux workstation, point `QT_ANDROID_CMAKE` at a Qt Android x86_64 kit and use the default `ANDROID_ABI=x86_64`. For physical-device direct-print builds, use a Qt Android arm64 kit and set `ANDROID_ABI=arm64-v8a`.
+For emulator builds on a Linux workstation, point `QT_ANDROID_CMAKE` at a Qt Android x86_64 kit and use the default `ANDROID_ABI=x86_64`. For physical-device direct-print builds, point `QT_ANDROID_CMAKE` at an arm64 kit, set `ANDROID_ABI=arm64-v8a`, and set `DIRECT_PRINT_SDK_ROOT` to a local vendor direct-print SDK drop. The SDK files are intentionally not committed.
 
 Install the local Android SDK command-line tools, emulator packages, and a Pixel-style AVD:
 
@@ -233,13 +244,14 @@ Build, install, and launch it on the emulator:
 scripts/android_build_install_run.sh
 ```
 
-The Android build defaults to `ANDROID_ABI=x86_64` for emulator testing on Linux. The x86_64 emulator requires KVM/VM acceleration with writable `/dev/kvm`; without it, `scripts/start_android_emulator.sh` and `scripts/run_android_emulator.sh` fail early with a host-setup message. Use `ANDROID_ABI=arm64-v8a` for physical-device builds that package the vendor direct-print SDK.
+The Android build defaults to `ANDROID_ABI=x86_64` for emulator testing on Linux. The x86_64 emulator requires KVM/VM acceleration with writable `/dev/kvm`; without it, `scripts/start_android_emulator.sh` and `scripts/run_android_emulator.sh` fail early with a host-setup message.
 
 ## Development Notes
 
 - `build/` is ignored and should not be committed.
 - The generated Qt resource output under `.rcc/` is ignored.
 - The blue-noise mask source directory is ignored because the masks are large local runtime assets.
+- Vendor SDK drops are local-only and should stay outside tracked public documentation and commits.
 - The tracked ICC and XML assets are required by the color-management and multi-ink paths.
 - `Dev_Build_App.sh` is a compatibility wrapper around `scripts/dev_build_linux.sh`.
 - `scripts/setup_android_emulator.sh` installs local Android SDK/emulator packages and creates the default AVD.
@@ -256,6 +268,7 @@ A useful quick verification path is:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
 timeout 8s ./build/PrintFlow
+scripts/run_tests.sh
 ```
 
 The timeout command is only a smoke test for startup and QML/runtime initialization; it stops the GUI after a few seconds.
@@ -269,9 +282,17 @@ Additional project documentation is in `docs/`:
 - `docs/RIP-APP_Flowchart.png`
 - `docs/README.md`
 
+## GitHub About
+
+Suggested repository description:
+
+```text
+Linux and Android Qt RIP application for preparing print jobs, previewing/editing artwork, managing printer settings, and generating raster/PRN output through pluggable vendor backends.
+```
+
 ## License
 
-No license file is currently included in this repository.
+MIT License. See `LICENSE`.
 
 ## Author
 
