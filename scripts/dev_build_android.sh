@@ -3,7 +3,7 @@
 set -euo pipefail
 
 BUILD_DIR="${BUILD_DIR:-build-android}"
-ANDROID_ABI="${ANDROID_ABI:-arm64-v8a}"
+ANDROID_ABI="${ANDROID_ABI:-x86_64}"
 
 fail() {
     printf 'error: %s\n' "$1" >&2
@@ -35,17 +35,23 @@ prepend_if_dir "${ANDROID_SDK_ROOT}/platform-tools"
 prepend_if_dir "${ANDROID_SDK_ROOT}/emulator"
 prepend_if_dir "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin"
 prepend_if_dir "${ANDROID_NDK_ROOT}/prebuilt/linux-x86_64/bin"
+if [[ -z "${JAVA_HOME:-}" && -x "${ANDROID_SDK_ROOT}/jdk/bin/java" ]]; then
+    export JAVA_HOME="${ANDROID_SDK_ROOT}/jdk"
+fi
+prepend_if_dir "${JAVA_HOME:-}/bin"
 
 require_command java
 require_command ninja
 require_command adb
 require_command emulator
 
-if [[ -n "${DIRECT_PRINT_SDK_ROOT:-}" ]]; then
+if [[ -n "${DIRECT_PRINT_SDK_ROOT:-}" && "${ANDROID_ABI}" == "arm64-v8a" ]]; then
     require_path "DIRECT_PRINT_SDK_ROOT" "${DIRECT_PRINT_SDK_ROOT}"
     if [[ ! -f "${DIRECT_PRINT_SDK_ROOT}/libSYPrintAPIforPROII.so" ]]; then
         fail "DIRECT_PRINT_SDK_ROOT must contain libSYPrintAPIforPROII.so for Android packaging"
     fi
+elif [[ -n "${DIRECT_PRINT_SDK_ROOT:-}" ]]; then
+    printf 'warning: DIRECT_PRINT_SDK_ROOT is set, but direct-print SDK packaging is only enabled for ANDROID_ABI=arm64-v8a. Current ABI: %s\n' "${ANDROID_ABI}" >&2
 else
     printf 'warning: DIRECT_PRINT_SDK_ROOT is not set; APK will build without the direct-print SDK library.\n' >&2
 fi

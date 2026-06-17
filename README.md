@@ -130,10 +130,18 @@ The first Android milestone is an APK that builds, installs, and boots in an emu
 Required environment variables:
 
 ```bash
-export QT_ANDROID_CMAKE="$HOME/Qt/<version>/android_arm64_v8a/bin/qt-cmake"
-export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+export QT_ANDROID_CMAKE="$HOME/Qt/<version>/android_x86_64/bin/qt-cmake"
+export ANDROID_SDK_ROOT="$PWD/.android-sdk"
 export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/<version>"
 export DIRECT_PRINT_SDK_ROOT="$PWD/DemoForARM64Linux-260612/Demo260612"
+```
+
+For emulator builds on a Linux workstation, point `QT_ANDROID_CMAKE` at a Qt Android x86_64 kit and use the default `ANDROID_ABI=x86_64`. For physical-device direct-print builds, use a Qt Android arm64 kit and set `ANDROID_ABI=arm64-v8a`.
+
+Install the local Android SDK command-line tools, emulator packages, and a Pixel-style AVD:
+
+```bash
+scripts/setup_android_emulator.sh
 ```
 
 Build the APK:
@@ -142,11 +150,13 @@ Build the APK:
 scripts/dev_build_android.sh
 ```
 
-Run it on an emulator:
+Build, install, and launch it on the emulator:
 
 ```bash
-AVD_NAME=<your-avd-name> scripts/run_android_emulator.sh
+scripts/android_build_install_run.sh
 ```
+
+The Android build defaults to `ANDROID_ABI=x86_64` for emulator testing on Linux. The x86_64 emulator requires KVM/VM acceleration with writable `/dev/kvm`; without it, `scripts/start_android_emulator.sh` and `scripts/run_android_emulator.sh` fail early with a host-setup message. Use `ANDROID_ABI=arm64-v8a` for physical-device builds that package the vendor direct-print SDK.
 
 ## Development Notes
 
@@ -155,8 +165,11 @@ AVD_NAME=<your-avd-name> scripts/run_android_emulator.sh
 - The blue-noise mask source directory is ignored because the masks are large local runtime assets.
 - The tracked ICC and XML assets are required by the color-management and multi-ink paths.
 - `Dev_Build_App.sh` is a compatibility wrapper around `scripts/dev_build_linux.sh`.
+- `scripts/setup_android_emulator.sh` installs local Android SDK/emulator packages and creates the default AVD.
 - `scripts/dev_build_android.sh` validates the Android toolchain and builds the APK target.
+- `scripts/start_android_emulator.sh` starts the configured AVD without requiring an APK.
 - `scripts/run_android_emulator.sh` installs and launches the latest built APK.
+- `scripts/android_build_install_run.sh` builds, installs, and launches in one step.
 
 ## Verification
 

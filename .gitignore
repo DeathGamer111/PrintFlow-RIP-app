@@ -87,3 +87,6 @@ resources/assets/blue_noise_mask_*/**
 
 # Local vendor SDK drops
 DemoForARM64Linux-*/
+
+# Local Android SDK command-line installs
+.android-sdk/
