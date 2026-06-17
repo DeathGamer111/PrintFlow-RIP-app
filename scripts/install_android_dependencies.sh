@@ -39,6 +39,22 @@ first_qt_target() {
     printf '%s' "$1"
 }
 
+qt_desktop_install_dir() {
+    local candidate
+
+    for candidate in \
+        "${QT_INSTALL_ROOT}/${QT_VERSION}/gcc_64" \
+        "${QT_INSTALL_ROOT}/${QT_VERSION}/${QT_DESKTOP_TARGET}"
+    do
+        if [[ -x "${candidate}/bin/qt-cmake" ]]; then
+            printf '%s' "${candidate}"
+            return
+        fi
+    done
+
+    printf '%s' "${QT_INSTALL_ROOT}/${QT_VERSION}/${QT_DESKTOP_TARGET}"
+}
+
 install_host_packages() {
     step "Installing Linux host packages"
     info "sudo may ask for your password."
@@ -92,14 +108,15 @@ aqt_install_qt() {
 }
 
 install_qt_desktop_tools() {
-    local qt_cmake
+    local qt_cmake qt_host_path
 
     step "Installing Qt ${QT_VERSION} desktop host tools"
     mkdir -p "${QT_INSTALL_ROOT}"
 
-    qt_cmake="${QT_INSTALL_ROOT}/${QT_VERSION}/${QT_DESKTOP_TARGET}/bin/qt-cmake"
+    qt_host_path="$(qt_desktop_install_dir)"
+    qt_cmake="${qt_host_path}/bin/qt-cmake"
     if [[ -x "${qt_cmake}" ]]; then
-        info "Qt desktop target already installed: ${QT_DESKTOP_TARGET}"
+        info "Qt desktop host tools already installed: ${qt_host_path}"
         return
     fi
 
@@ -124,12 +141,14 @@ install_qt_android_targets() {
 }
 
 write_env_file() {
-    local default_target qt_android_cmake
+    local default_target qt_android_cmake qt_host_path
 
     default_target="$(first_qt_target)"
     qt_android_cmake="${QT_INSTALL_ROOT}/${QT_VERSION}/${default_target}/bin/qt-cmake"
+    qt_host_path="$(qt_desktop_install_dir)"
 
     [[ -x "${qt_android_cmake}" ]] || fail "Qt Android qt-cmake was not found: ${qt_android_cmake}"
+    [[ -x "${qt_host_path}/bin/qt-cmake" ]] || fail "Qt host qt-cmake was not found: ${qt_host_path}/bin/qt-cmake"
 
     step "Writing Android build environment"
     cat > "${ANDROID_ENV_FILE}" <<EOF
@@ -138,7 +157,9 @@ write_env_file() {
 export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT}"
 export ANDROID_NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}"
 export QT_ANDROID_CMAKE="${qt_android_cmake}"
+export QT_HOST_PATH="${qt_host_path}"
 export ANDROID_ABI="\${ANDROID_ABI:-x86_64}"
+export GRADLE_USER_HOME="${REPO_ROOT}/.gradle"
 export PATH="${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:\$PATH"
 EOF
 
@@ -155,9 +176,11 @@ verify_setup() {
     require_command adb
     require_command emulator
     [[ -x "${QT_ANDROID_CMAKE}" ]] || fail "QT_ANDROID_CMAKE is not executable: ${QT_ANDROID_CMAKE}"
+    [[ -x "${QT_HOST_PATH}/bin/qt-cmake" ]] || fail "QT_HOST_PATH does not contain bin/qt-cmake: ${QT_HOST_PATH}"
     [[ -d "${ANDROID_NDK_ROOT}" ]] || fail "ANDROID_NDK_ROOT does not exist: ${ANDROID_NDK_ROOT}"
 
     info "QT_ANDROID_CMAKE=${QT_ANDROID_CMAKE}"
+    info "QT_HOST_PATH=${QT_HOST_PATH}"
     info "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}"
     info "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT}"
 }
