@@ -1,4 +1,5 @@
 #include "PrintJobMultiInk.h"
+#include "NocaiPrnWriter.h"
 
 #include <QDateTime>
 #include <QDebug>
@@ -10,37 +11,12 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <fstream>
 
 #include <lcms2.h>
 
 
 namespace {
-
-	// -----------------------------------------------------------------------------
-	// Packed header for the new motherboard
-	// -----------------------------------------------------------------------------
-
-	#pragma pack(push, 1)
-	struct InkjetImageHeader {
-		char     magic[6];      // "inkjet"
-		uint16_t version;       // 0x0001
-		uint32_t pixelWidth;    // Width in pixels
-		uint32_t pixelHeight;   // Height in pixels
-		float    xDpi;          // X DPI (<= 720.0)
-		float    yDpi;          // Y DPI
-		uint32_t bytesPerLine;  // Packed bytes per line (per channel), 4-byte padded
-		uint32_t previewBytes;  // 0 for now
-		uint32_t reserved1[4];  // Zero
-		uint8_t  dotBits;       // 1,2,3 – we use 2 for 2bpp
-		uint8_t  colorNum;      // 4,5,6,7,8,10
-		uint8_t  reserved2[14]; // Zero
-		uint8_t  colorList[16]; // Ink IDs in raster order
-	};
-	#pragma pack(pop)
-
-
 	enum class SpecialtyMode {
 		Off = 0,
 		AutoUnderbase = 1, // White
@@ -220,95 +196,6 @@ namespace {
 	}
 
 
-	static void buildColorListForMode(
-		PrintJobMultiInk::InkMode mode,
-		const std::vector<int>& channelOrder,
-		uint8_t colorList[16])
-	{
-		std::fill(colorList, colorList + 16, 0);
-
-		auto mapLogicalChannelToBoardByte = [&](int ch) -> uint8_t {
-		    switch (mode) {
-		    case PrintJobMultiInk::InkMode::FourColor_YMCK:
-		        switch (ch) {
-		        case 0: return 'C';
-		        case 1: return 'M';
-		        case 2: return 'Y';
-		        case 3: return 'K';
-		        default: return 0;
-		        }
-
-		    case PrintJobMultiInk::InkMode::FiveColor_YMCK_W:
-		        switch (ch) {
-		        case 0: return 'C';
-		        case 1: return 'M';
-		        case 2: return 'Y';
-		        case 3: return 'K';
-		        case 4: return 'W';
-		        default: return 0;
-		        }
-
-		    case PrintJobMultiInk::InkMode::SixColor_YMCK_Lm_Lc:
-		        switch (ch) {
-		        case 0: return 'C';
-		        case 1: return 'M';
-		        case 2: return 'Y';
-		        case 3: return 'K';
-		        case 4: return 'c';
-		        case 5: return 'm';
-		        default: return 0;
-		        }
-
-		    case PrintJobMultiInk::InkMode::SevenColor_YMCK_Lm_Lc_W:
-		        switch (ch) {
-		        case 0: return 'C';
-		        case 1: return 'M';
-		        case 2: return 'Y';
-		        case 3: return 'K';
-		        case 4: return 'c';
-		        case 5: return 'm';
-		        case 6: return 'W';
-		        default: return 0;
-		        }
-
-		    case PrintJobMultiInk::InkMode::EightColor_YMCK_Lm_Lc_Lk_LLk:
-		        switch (ch) {
-		        case 0: return 'C';
-		        case 1: return 'M';
-		        case 2: return 'Y';
-		        case 3: return 'K';
-		        case 4: return 'c';
-		        case 5: return 'm';
-		        case 6: return 'k';
-		        case 7: return 0x01;
-		        default: return 0;
-		        }
-
-		    case PrintJobMultiInk::InkMode::TenColor_YMCK_Lm_Lc_Lk_LLk_W_V:
-		        switch (ch) {
-		        case 0: return 'C';
-		        case 1: return 'M';
-		        case 2: return 'Y';
-		        case 3: return 'K';
-		        case 4: return 'c';
-		        case 5: return 'm';
-		        case 6: return 'k';
-		        case 7: return 0x01;
-		        case 8: return 'W';
-		        case 9: return 'V';
-		        default: return 0;
-		        }
-
-		    default:
-		        return 0;
-		    }
-		};
-
-		const size_t count = std::min<size_t>(channelOrder.size(), 16);
-		for (size_t i = 0; i < count; ++i) {
-		    colorList[i] = mapLogicalChannelToBoardByte(channelOrder[i]);
-		}
-	}
 } // end of namespace
 
 
@@ -1364,71 +1251,41 @@ bool PrintJobMultiInk::applySpecialtyBlanking(RasterPayload& payload) const
 bool PrintJobMultiInk::writePRNFile(const RasterPayload& payload,
                                     const QString& outputPath)
 {
-    if (payload.packedLines.empty() || payload.packedLines[0].empty()) {
-        qWarning() << "PrintJobMultiInk: packedLines empty.";
+    NocaiPrnWriter::MultiInkMode writerMode;
+    switch (m_inkMode) {
+    case InkMode::FourColor_YMCK:
+        writerMode = NocaiPrnWriter::MultiInkMode::FourColorYMCK;
+        break;
+    case InkMode::FiveColor_YMCK_W:
+        writerMode = NocaiPrnWriter::MultiInkMode::FiveColorYMCKW;
+        break;
+    case InkMode::SixColor_YMCK_Lm_Lc:
+        writerMode = NocaiPrnWriter::MultiInkMode::SixColorYMCKLmLc;
+        break;
+    case InkMode::SevenColor_YMCK_Lm_Lc_W:
+        writerMode = NocaiPrnWriter::MultiInkMode::SevenColorYMCKLmLcW;
+        break;
+    case InkMode::EightColor_YMCK_Lm_Lc_Lk_LLk:
+        writerMode = NocaiPrnWriter::MultiInkMode::EightColorYMCKLmLcLkLLk;
+        break;
+    case InkMode::TenColor_YMCK_Lm_Lc_Lk_LLk_W_V:
+        writerMode = NocaiPrnWriter::MultiInkMode::TenColorYMCKLmLcLkLLkWV;
+        break;
+    default:
+        qWarning() << "PrintJobMultiInk: unsupported ink mode for PRN writer:" << inkMode();
         return false;
     }
 
-    const uint32_t colors = static_cast<uint32_t>(payload.channelOrder.size());
-    const uint32_t bytesPerLine = static_cast<uint32_t>(payload.bytesPerLine);
-
-    if (colors == 0 || colors > 16) {
-        qWarning() << "PrintJobMultiInk: invalid channel count for header:" << colors;
-        return false;
-    }
-
-    float fxDpi = static_cast<float>(payload.xdpi);
-    float fyDpi = static_cast<float>(payload.ydpi);
-
-    if (fxDpi > 720.0f) {
-        qWarning() << "PrintJobMultiInk: xDpi" << fxDpi << "exceeds 720, clamping.";
-        fxDpi = 720.0f;
-    }
-
-    const QString outPath = QUrl(outputPath).toLocalFile();
-    std::ofstream out(outPath.toStdString(), std::ios::binary);
-    if (!out) {
-        qWarning() << "PrintJobMultiInk: failed to open output file:" << outputPath;
-        return false;
-    }
-
-    InkjetImageHeader hdr{};
-    std::memset(&hdr, 0, sizeof(hdr));
-
-    const char magicStr[6] = {'i', 'n', 'k', 'j', 'e', 't'};
-    std::memcpy(hdr.magic, magicStr, sizeof(hdr.magic));
-
-    hdr.version = 0x0001;
-    hdr.pixelWidth = static_cast<uint32_t>(payload.width);
-    hdr.pixelHeight = static_cast<uint32_t>(payload.height);
-    hdr.xDpi = fxDpi;
-    hdr.yDpi = fyDpi;
-    hdr.bytesPerLine = bytesPerLine;
-    hdr.previewBytes = 0;
-    hdr.dotBits = 2;
-    hdr.colorNum = static_cast<uint8_t>(colors);
-
-    std::memset(hdr.colorList, 0x00, sizeof(hdr.colorList));
-    buildColorListForMode(m_inkMode, payload.channelOrder, hdr.colorList);
-
-    out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
-
-    for (int row = 0; row < payload.height; ++row) {
-        for (int ch : payload.channelOrder) {
-            const std::vector<uint8_t>& src = payload.packedLines[ch][row];
-            out.write(reinterpret_cast<const char*>(src.data()), src.size());
-        }
-    }
-
-    out.close();
-
-    qDebug() << "PrintJobMultiInk: PRN created at" << outputPath
-             << "width" << payload.width
-             << "height" << payload.height
-             << "colors" << colors
-             << "bytesPerLine" << bytesPerLine;
-
-    return true;
+    return NocaiPrnWriter::writeMultiInkPrn(
+        payload.packedLines,
+        payload.channelOrder,
+        writerMode,
+        payload.width,
+        payload.height,
+        payload.xdpi,
+        payload.ydpi,
+        payload.bytesPerLine,
+        outputPath);
 }
 
 

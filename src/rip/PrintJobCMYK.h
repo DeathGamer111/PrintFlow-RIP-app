@@ -1,4 +1,4 @@
-// PrintJobNocai.h
+// PrintJobCMYK.h
 
 #include <QObject>
 #include <QString>
@@ -17,8 +17,8 @@
 #include <Magick++.h>
 #include "ColorManagementManager.h"
 
-// PRN generation pipeline: input load -> optional ICC convert -> CMYK separation ->
-// blue-noise thresholding -> dot classification (2bpp) -> PRN write. Exposed to QML.
+// CMYK raster pipeline: input load -> optional ICC convert -> CMYK separation ->
+// blue-noise thresholding -> dot classification, then vendor PRN output.
 
 class ColorManagementManager;
 
@@ -40,7 +40,7 @@ struct DotStrategy {
 };
 
 
-class PrintJobNocai : public QObject {
+class PrintJobCMYK : public QObject {
     Q_OBJECT
 
 signals:
@@ -50,7 +50,7 @@ public slots:
     Q_INVOKABLE void runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath);		// End-to-end async entry.
 
 public:
-    explicit PrintJobNocai(QObject* parent = nullptr);
+    explicit PrintJobCMYK(QObject* parent = nullptr);
     
     void setColorManager(ColorManagementManager* mgr);
 
@@ -60,7 +60,8 @@ public:
     Q_INVOKABLE bool generateFinalPRN(const QString& outputPath, int xdpi, int ydpi);				// Threshold, pack, write.
     
     // Internal Assets Handling for Blue Noise Mask and ICC Profiles
-    Q_INVOKABLE void prepareNocaiAssets();															// Extract/copy assets to temp.
+    Q_INVOKABLE void prepareAssets();																// Extract/copy assets to temp.
+    Q_INVOKABLE void prepareNocaiAssets();															// Compatibility wrapper for existing QML.
     Q_INVOKABLE void cleanupTemporaryFiles(const QString& baseName, const QString& workingDir);		// Remove temp by base.
     Q_INVOKABLE void cleanupRuntimeAssets();														// Tear down temp dir, etc.
     
@@ -111,9 +112,5 @@ private:
     
     // void apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap, int width, int height);
     void apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap, const std::vector<uint8_t>& tone, int width, int height);
-
-	// PRN Helper Functions    
-    std::vector<std::vector<uint8_t>> packTo2BPP(const std::vector<std::vector<uint8_t>>& dotMap, int width, int height);
-    bool writePRNFile(const std::vector<std::vector<std::vector<uint8_t>>>& packedLines, const std::vector<int>& channelOrder, int width, int height, int xdpi, int ydpi, const QString& outputPath);
 
 };

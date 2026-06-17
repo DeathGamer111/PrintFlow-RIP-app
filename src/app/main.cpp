@@ -13,7 +13,7 @@
 #include "PrintJobModel.h"
 #include "ImageLoader.h"
 #include "PrintJobOutput.h"
-#include "PrintJobNocai.h"
+#include "PrintJobCMYK.h"
 #include "PrintJobMultiInk.h"
 #include "NocaiDirectPrintClient.h"
 #include "ImageEditor.h"
@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
     ImageLoader imageLoader;
     ImageEditor imageEditor;
     PrintJobOutput printJobOutput;
-    PrintJobNocai printJobNocaiOutput;
+    PrintJobCMYK printJobCMYKOutput;
     NocaiDirectPrintClient nocaiDirectPrint;
     PrintJobMultiInk printJobMultiInk;
     ColorProfile colorProfile;
@@ -78,7 +78,8 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("imageLoader", &imageLoader);
     engine.rootContext()->setContextProperty("imageEditor", &imageEditor);
     engine.rootContext()->setContextProperty("printJobOutput", &printJobOutput);
-    engine.rootContext()->setContextProperty("printJobNocai", &printJobNocaiOutput);
+    engine.rootContext()->setContextProperty("printJobCMYK", &printJobCMYKOutput);
+    engine.rootContext()->setContextProperty("printJobNocai", &printJobCMYKOutput);
     engine.rootContext()->setContextProperty("nocaiDirectPrint", &nocaiDirectPrint);
     engine.rootContext()->setContextProperty("printJobMultiInk", &printJobMultiInk);
     engine.rootContext()->setContextProperty("colorProfile", &colorProfile);
@@ -91,7 +92,7 @@ int main(int argc, char *argv[]) {
     // bind shared ColorManager to both backends
     printJobMultiInk.setColorManager(&colorManager);
     printJobMultiInk.setDirectPrintClient(&nocaiDirectPrint);
-    printJobNocaiOutput.setColorManager(&colorManager);
+    printJobCMYKOutput.setColorManager(&colorManager);
     
     // Cap decode allocations to reduce OOM risk with very large images (MB).
     // Set to 0 to disable the guard (not recommended).

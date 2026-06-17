@@ -9,7 +9,7 @@
 
 class ColorManagementManager;
 
-class PrintJobNocai : public QObject
+class PrintJobCMYK : public QObject
 {
     Q_OBJECT
 
@@ -17,7 +17,7 @@ signals:
     void prnGenerationFinished(bool success);
 
 public:
-    explicit PrintJobNocai(QObject* parent = nullptr);
+    explicit PrintJobCMYK(QObject* parent = nullptr);
 
     void setColorManager(ColorManagementManager* mgr);
 
@@ -26,6 +26,7 @@ public:
     Q_INVOKABLE bool applyICCConversion(const QString& inputProfile, const QString& outputProfile);
     Q_INVOKABLE bool generateFinalPRN(const QString& outputPath, int xdpi, int ydpi);
 
+    Q_INVOKABLE void prepareAssets();
     Q_INVOKABLE void prepareNocaiAssets();
     Q_INVOKABLE void cleanupTemporaryFiles(const QString& baseName, const QString& workingDir);
     Q_INVOKABLE void cleanupRuntimeAssets();

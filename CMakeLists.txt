@@ -23,6 +23,7 @@ set(RIP_CORE_SOURCES
     src/core/PrintJob.h
     src/core/PrintJobModel.h src/core/PrintJobModel.cpp
     src/vendor/nocai/NocaiDirectPrintClient.h src/vendor/nocai/NocaiDirectPrintClient.cpp
+    src/vendor/nocai/NocaiPrnWriter.h src/vendor/nocai/NocaiPrnWriter.cpp
 )
 
 set(RIP_NATIVE_SOURCES
@@ -34,7 +35,7 @@ set(RIP_NATIVE_SOURCES
     src/rip/MultiInkToneBuilder.h src/rip/MultiInkToneBuilder.cpp
     src/rip/MultiInkTypes.h
     src/rip/PrintJobMultiInk.h src/rip/PrintJobMultiInk.cpp
-    src/rip/PrintJobNocai.h src/rip/PrintJobNocai.cpp
+    src/rip/PrintJobCMYK.h src/rip/PrintJobCMYK.cpp
 )
 
 set(RIP_ANDROID_STUB_SOURCES
@@ -42,7 +43,7 @@ set(RIP_ANDROID_STUB_SOURCES
     src/platform/android/ImageEditor.h src/platform/android/ImageEditor.cpp
     src/platform/android/ImageLoader.h src/platform/android/ImageLoader.cpp
     src/platform/android/PrintJobMultiInk.h src/platform/android/PrintJobMultiInk.cpp
-    src/platform/android/PrintJobNocai.h src/platform/android/PrintJobNocai.cpp
+    src/platform/android/PrintJobCMYK.h src/platform/android/PrintJobCMYK.cpp
 )
 
 if(ANDROID AND NOT RIP_ANDROID_ENABLE_RIP_PROCESSING)
@@ -222,4 +223,22 @@ if(NOT ANDROID)
 
     add_test(NAME PrintFlowDirectPrintClientUnavailable
              COMMAND PrintFlowDirectPrintClientTest)
+
+    add_executable(PrintFlowNocaiPrnWriterTest
+        tests/NocaiPrnWriterTest.cpp
+        src/vendor/nocai/NocaiPrnWriter.h
+        src/vendor/nocai/NocaiPrnWriter.cpp
+    )
+
+    target_include_directories(PrintFlowNocaiPrnWriterTest PRIVATE
+        src/vendor/nocai
+    )
+
+    target_link_libraries(PrintFlowNocaiPrnWriterTest
+        PRIVATE
+            Qt6::Core
+    )
+
+    add_test(NAME PrintFlowNocaiPrnWriter
+             COMMAND PrintFlowNocaiPrnWriterTest)
 endif()

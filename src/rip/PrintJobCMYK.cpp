@@ -1,4 +1,5 @@
-#include "PrintJobNocai.h"
+#include "PrintJobCMYK.h"
+#include "NocaiPrnWriter.h"
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QStandardPaths>
@@ -14,7 +15,7 @@
 #include <fstream>
 
 
-/* PrintJobNocai.cpp
+/* PrintJobCMYK.cpp
  * End-to-end PRN pipeline:
  *   loadInputImage -> (optional) applyICCConversion -> generateFinalPRN
  * Core stages (in generateFinalPRN):
@@ -28,7 +29,7 @@
  
  
 // Constructor; No-operation; state set by loader and setters.
-PrintJobNocai::PrintJobNocai(QObject* parent) : QObject(parent) {}
+PrintJobCMYK::PrintJobCMYK(QObject* parent) : QObject(parent) {}
 
 
 // Per-pixel hash used to derive stable channel-specific phase and probabilistic swaps.
@@ -53,13 +54,13 @@ static inline uint8_t lerp_u8(uint8_t a, uint8_t b, uint8_t w /*0..255*/) {
  * - Seeds screening
  * - Calls generateFinalPRN and emits prnGenerationFinished
  */
-void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath) {
+void PrintJobCMYK::runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath) {
     (void) QtConcurrent::run([=]() {
         bool success = false;
 
         // Ensure runtime assets are ready
-        const_cast<PrintJobNocai*>(this)->prepareNocaiAssets();
-        qDebug() << "PrintJobNocai::runPRNGeneration: assetsExtractPath =" << assetsExtractPath;
+        const_cast<PrintJobCMYK*>(this)->prepareAssets();
+        qDebug() << "PrintJobCMYK::runPRNGeneration: assetsExtractPath =" << assetsExtractPath;
 
         // ---- Basic job fields ----
         const QString imagePath  = jobMap.value("imagePath").toString();
@@ -80,7 +81,7 @@ void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& o
         const int  floorMaxK        = (m_colorManager ? m_colorManager->floorMaxK()         : int(dotStrategy.floorMaxK));
         const bool enableDotSwap    = (m_colorManager ? m_colorManager->enableDotSwap()     : dotStrategy.enableDotSwap);
 
-        const_cast<PrintJobNocai*>(this)->setDotStrategy(
+        const_cast<PrintJobCMYK*>(this)->setDotStrategy(
             minThreshold,
             smallThreshold,
             medThreshold,
@@ -121,7 +122,7 @@ void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& o
             outputICC = defaultOutputICCPath; // internal default in assets dir
         }
 
-        qDebug() << "PrintJobNocai: dot strategy updated (ColorManager precedence)"
+        qDebug() << "PrintJobCMYK: dot strategy updated (ColorManager precedence)"
                  << "minInk=" << dotStrategy.minInkThreshold
                  << "small="  << dotStrategy.smallDotThreshold
                  << "med="    << dotStrategy.medDotThreshold
@@ -136,13 +137,13 @@ void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& o
 
             // ---- ICC conversion logic ----
             if (inputImage.colorSpace() != Magick::CMYKColorspace) {
-                qDebug() << "PrintJobNocai: input NOT CMYK — applying ICC (sRGB → printer CMYK)";
+                qDebug() << "PrintJobCMYK: input NOT CMYK — applying ICC (sRGB → printer CMYK)";
 
                 const QString inputICC = assetsExtractPath + "/sRGBProfile.icm";
                 if (!outputICC.isEmpty()) {
                     success = applyICCConversion(inputICC, outputICC);
                 } else {
-                    qWarning() << "PrintJobNocai: no output ICC available; cannot convert.";
+                    qWarning() << "PrintJobCMYK: no output ICC available; cannot convert.";
                     success = false;
                 }
 
@@ -157,15 +158,15 @@ void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& o
                     }
 
                     if (!inCMYK.isEmpty() && !outputICC.isEmpty()) {
-                        qDebug() << "PrintJobNocai: input CMYK — applying ICC (Default CMYK → printer CMYK)";
+                        qDebug() << "PrintJobCMYK: input CMYK — applying ICC (Default CMYK → printer CMYK)";
                         success = applyICCConversion(inCMYK, outputICC);
                     } else {
-                        qWarning() << "PrintJobNocai: CMYK input ICC or output ICC missing; skipping conversion.";
+                        qWarning() << "PrintJobCMYK: CMYK input ICC or output ICC missing; skipping conversion.";
                         success = true; // keep pipeline running
                     }
 
                 } else {
-                    qDebug() << "PrintJobNocai: input CMYK — skipping ICC conversion.";
+                    qDebug() << "PrintJobCMYK: input CMYK — skipping ICC conversion.";
                     success = true;
                 }
             }
@@ -187,7 +188,7 @@ void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& o
 
 
 // Main PRN generation: separation -> threshold -> classify -> promote -> pack -> write.
-bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi) {
+bool PrintJobCMYK::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi) {
     try {
         const std::vector<int> nocaiOrder = {2, 1, 0, 3};	// Output channel order: Y, M, C, K.
         const QStringList chKeys = {"c", "m", "y", "k"};
@@ -299,12 +300,18 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
 			}
 
             // Pack to 2bpp (4 pixels per byte, big-endian within the byte).
-            auto packed = packTo2BPP(dotMap, width, height);
+            auto packed = NocaiPrnWriter::packTo2Bpp(dotMap, width, height);
             allPacked[ch] = std::move(packed);
         }
 
-        // === Step 5: Write PRN: Nocai header + interleaved channel rows in required order.
-        return writePRNFile(allPacked, nocaiOrder, width, height, xdpi, ydpi, outputPath);
+        return NocaiPrnWriter::writeStandardCmykPrn(
+            allPacked,
+            nocaiOrder,
+            width,
+            height,
+            xdpi,
+            ydpi,
+            outputPath);
 
     } catch (const Magick::Exception& e) {
         qWarning() << "PRN generation failed:" << e.what();
@@ -314,7 +321,7 @@ bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int yd
 
 
 // Attach input ICC (source) then destination ICC (printer), then force CMYK storage.
-bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QString& outputProfile) {
+bool PrintJobCMYK::applyICCConversion(const QString& inputProfile, const QString& outputProfile) {
     try {
 		std::ifstream inFile(inputProfile.toStdString(), std::ios::binary);
 		std::ifstream outFile(outputProfile.toStdString(), std::ios::binary);
@@ -351,7 +358,7 @@ bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QStrin
 
 
 // Split CMYK to 4 grayscale planes (“I” format); 8-bit depth.
-std::array<Magick::Image, 4> PrintJobNocai::separateCMYK(Magick::Image& cmykImage) {
+std::array<Magick::Image, 4> PrintJobCMYK::separateCMYK(Magick::Image& cmykImage) {
     std::array<Magick::Image, 4> channels;
     int width = static_cast<int>(cmykImage.columns());
     int height = static_cast<int>(cmykImage.rows());
@@ -373,14 +380,14 @@ std::array<Magick::Image, 4> PrintJobNocai::separateCMYK(Magick::Image& cmykImag
     return channels;
 }
 
-void PrintJobNocai::setColorManager(ColorManagementManager* mgr) {
+void PrintJobCMYK::setColorManager(ColorManagementManager* mgr) {
     m_colorManager = mgr;
 }
 
 
 
 // Set all ink dot thresholds and promotion toggle at once.
-void PrintJobNocai::setDotStrategy(int minInkThreshold, int smallDotThreshold, int medDotThreshold, bool enablePromotion, uint8_t floorRangeCMY, uint8_t floorMaxCMY, uint8_t floorRangeK, uint8_t floorMaxK, bool enableDotSwap) {
+void PrintJobCMYK::setDotStrategy(int minInkThreshold, int smallDotThreshold, int medDotThreshold, bool enablePromotion, uint8_t floorRangeCMY, uint8_t floorMaxCMY, uint8_t floorRangeK, uint8_t floorMaxK, bool enableDotSwap) {
     dotStrategy.minInkThreshold 	= minInkThreshold;
     dotStrategy.smallDotThreshold 	= smallDotThreshold;
     dotStrategy.medDotThreshold 	= medDotThreshold;
@@ -405,7 +412,7 @@ void PrintJobNocai::setDotStrategy(int minInkThreshold, int smallDotThreshold, i
  *   - small/med cuts are lerped against tone to keep highlight dots physically smaller.
  *   - Optional probabilistic swap small<->large in low tones to soften boundaries.
  */
-std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(
+std::vector<std::vector<uint8_t>> PrintJobCMYK::dotClassification(
     const std::vector<uint8_t>& dithered,
     const std::vector<uint8_t>& mask,
     const std::vector<uint8_t>& channel,
@@ -473,7 +480,7 @@ std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(
 // - Medium -> Large in a higher band
 // - No Small -> Large jump
 // - Tone-gated; avoids highlights and edges
-void PrintJobNocai::apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap,
+void PrintJobCMYK::apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap,
                                       const std::vector<uint8_t>& tone,
                                       int width, int height)
 {
@@ -561,100 +568,8 @@ void PrintJobNocai::apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap,
 
 
 
-// 2bpp packing: 4 pixels per byte, bits [7..0] = p0[1:0] p1[1:0] p2[1:0] p3[1:0]; pad lines to 4-byte boundary.
-std::vector<std::vector<uint8_t>> PrintJobNocai::packTo2BPP(const std::vector<std::vector<uint8_t>>& dotMap, int width, int height) {
-    const int bytesPerLine = (width + 3) / 4;
-    std::vector<std::vector<uint8_t>> packedLines(height);
-
-    for (int y = 0; y < height; ++y) {
-        std::vector<uint8_t>& line = packedLines[y];
-        line.reserve(bytesPerLine);
-        uint8_t byte = 0;
-        int idx = 0;
-
-        for (int x = 0; x < width; ++x) {
-            uint8_t level = dotMap[y][x] & 0x03;
-            byte |= level << ((3 - (idx % 4)) * 2);
-            ++idx;
-
-            if (idx % 4 == 0) {
-                line.push_back(byte);
-                byte = 0;
-            }
-        }
-
-        if (idx % 4 != 0) line.push_back(byte);
-        while (line.size() % 4 != 0) line.push_back(0);
-    }
-
-    return packedLines;
-}
-
-
-/* PRN writer
- * Header (48 bytes, 12 x uint32_t):
- *   [0]  signature 0x00005555
- *   [1]  xdpi
- *   [2]  ydpi
- *   [3]  bytesPerLine (per channel)
- *   [4]  height
- *   [5]  width
- *   [6]  paperWidth (0 = unspecified)
- *   [7]  colors (4)
- *   [8]  bits   (1 => 2bpp levels encoded externally)
- *   [9]  pass   (1)
- *   [10] vsdMode (0)
- *   [11] reserved (0)
- * Data: for each row, write channels in channelOrder, each as packedLines[ch][row].
- */
-bool PrintJobNocai::writePRNFile(
-        const std::vector<std::vector<std::vector<uint8_t>>>& packedLines,
-        const std::vector<int>& channelOrder,
-        int width, int height, int xdpi, int ydpi,
-        const QString& outputPath)
-    {
-
-    QString outPath = QUrl(outputPath).toLocalFile();
-
-    std::ofstream out(outPath.toStdString(), std::ios::binary);
-    if (!out) {
-        qWarning() << "Failed to open output file for writing:" << outputPath;
-        return false;
-    }
-
-    uint32_t bytesPerLine = static_cast<uint32_t>(packedLines[0][0].size());
-
-    uint32_t header[12] = {
-        0x00005555,						// Signature
-        static_cast<uint32_t>(xdpi),	// XDPI
-        static_cast<uint32_t>(ydpi),	// YDPI
-        bytesPerLine,					// BytesPerLine
-        static_cast<uint32_t>(height),	// Height
-        static_cast<uint32_t>(width),	// Width
-        0,								// PaperWidth
-        4,								// Colors
-        1,								// Bits
-        1, 								// Pass
-        0,								// VSD Mode
-        0								// Reserved[0]
-    };
-    
-    out.write(reinterpret_cast<const char*>(header), sizeof(header));
-
-    for (int row = 0; row < height; ++row) {
-        for (int ch : channelOrder) {
-            out.write(reinterpret_cast<const char*>(packedLines[ch][row].data()), packedLines[ch][row].size());
-        }
-    }
-
-    out.close();
-    qDebug() << "Final PRN file created:" << outputPath;
-    return true;
-}
-
-
 // Read image and stage a temp file to work from (avoids touching originals).
-bool PrintJobNocai::loadInputImage(const QString& imagePath) {
+bool PrintJobCMYK::loadInputImage(const QString& imagePath) {
     try {
         QString localPath = QUrl(imagePath).toLocalFile();
         inputImage.read(localPath.toStdString());
@@ -681,7 +596,7 @@ bool PrintJobNocai::loadInputImage(const QString& imagePath) {
 
 
 // Read an ICC file into a Magick::Blob.
-Magick::Blob PrintJobNocai::loadICCProfile(const QString& path) {
+Magick::Blob PrintJobCMYK::loadICCProfile(const QString& path) {
     std::ifstream file(path.toStdString(), std::ios::binary);
     std::vector<char> buf((std::istreambuf_iterator<char>(file)), {});
     return Magick::Blob(buf.data(), buf.size());
@@ -689,38 +604,38 @@ Magick::Blob PrintJobNocai::loadICCProfile(const QString& path) {
 
 
 // Default output ICC path setter and getter
-void PrintJobNocai::setDefaultOutputICCProfile(const QString& outputProfile) {
+void PrintJobCMYK::setDefaultOutputICCProfile(const QString& outputProfile) {
     defaultOutputICCPath = outputProfile;
     qDebug() << "Default output ICC profile set to:" << outputProfile;
 }
 
-QString PrintJobNocai::getDefaultOutputICCProfile() const { return defaultOutputICCPath; }
+QString PrintJobCMYK::getDefaultOutputICCProfile() const { return defaultOutputICCPath; }
 
 
 // Default input CMYK path setter and getter
-void PrintJobNocai::setDefaultInputCMYKProfile(const QString& inputProfilePath) {
+void PrintJobCMYK::setDefaultInputCMYKProfile(const QString& inputProfilePath) {
     defaultInputCMYKPath = inputProfilePath;
     qDebug() << "Default input CMYK profile set to:" << inputProfilePath;
 }
 
-QString PrintJobNocai::getDefaultInputCMYKProfile() const { return defaultInputCMYKPath; }
+QString PrintJobCMYK::getDefaultInputCMYKProfile() const { return defaultInputCMYKPath; }
 
 
 // Global toggle for CMYK->printer conversion (when source is already CMYK).
-void PrintJobNocai::enableDefaultInputCMYK(bool enabled) {
+void PrintJobCMYK::enableDefaultInputCMYK(bool enabled) {
     useDefaultInputCMYK = enabled;
     qDebug() << "Use default CMYK input profile:" << enabled;
 }
 
-bool PrintJobNocai::checkDefaultInputCMYK() const { return useDefaultInputCMYK; }
+bool PrintJobCMYK::checkDefaultInputCMYK() const { return useDefaultInputCMYK; }
 
 
 // Add a named ICC profile to the in-memory list.
-void PrintJobNocai::addICCProfile(const QString& name, const QString& path) {
+void PrintJobCMYK::addICCProfile(const QString& name, const QString& path) {
     // Avoid duplicates: if this path is already in the list, skip adding.
     for (const auto& pair : availableICCProfiles) {
         if (pair.second == path) {
-            qDebug() << "PrintJobNocai::addICCProfile: skipping duplicate ICC profile at"
+            qDebug() << "PrintJobCMYK::addICCProfile: skipping duplicate ICC profile at"
                      << path;
             return;
         }
@@ -731,7 +646,7 @@ void PrintJobNocai::addICCProfile(const QString& name, const QString& path) {
 
 
 // Return available ICC profiles as [{name,path}, ...].
-QVariantList PrintJobNocai::getAvailableICCProfiles() const {
+QVariantList PrintJobCMYK::getAvailableICCProfiles() const {
     QVariantList list;
     for (const auto& pair : availableICCProfiles) {
         QVariantMap entry;
@@ -746,10 +661,10 @@ QVariantList PrintJobNocai::getAvailableICCProfiles() const {
 
 // Copy runtime assets (profiles and masks) out of resources to a writeable temp location.
 // Also initialize defaults and register profiles for UI selection.
-void PrintJobNocai::prepareNocaiAssets() {
+void PrintJobCMYK::prepareAssets() {
     // If assests have been moved and directory still exists, skip all the work.
     if (assetsPrepared && !assetsExtractPath.isEmpty() && QDir(assetsExtractPath).exists()) {
-        qDebug() << "PrintJobMuNocai: assets already prepared in" << assetsExtractPath;
+        qDebug() << "PrintJobCMYK: assets already prepared in" << assetsExtractPath;
         return;
     }
     
@@ -790,12 +705,18 @@ void PrintJobNocai::prepareNocaiAssets() {
     setDefaultOutputICCProfile((assetsExtractPath + "/RIP_App_1440_Plain_Default.icc"));
     setDefaultInputCMYKProfile(assetsExtractPath + "/RIP_App_Generic_CMYK.icc");
 
-    qDebug() << "Nocai assets prepared in:" << assetsExtractPath;
+    qDebug() << "PrintJobCMYK assets prepared in:" << assetsExtractPath;
+}
+
+
+void PrintJobCMYK::prepareNocaiAssets()
+{
+    prepareAssets();
 }
 
 
 // Remove intermediate files for a given job (and optionally its working directory).
-void PrintJobNocai::cleanupTemporaryFiles(const QString& baseName, const QString& workingDir) {
+void PrintJobCMYK::cleanupTemporaryFiles(const QString& baseName, const QString& workingDir) {
     qDebug() << "Cleaning intermediate files for base:" << baseName << "in dir:" << workingDir;
     QStringList suffixes = {
         "_c_1bit.tiff", "_m_1bit.tiff", "_y_1bit.tiff", "_k_1bit.tiff",
@@ -821,7 +742,7 @@ void PrintJobNocai::cleanupTemporaryFiles(const QString& baseName, const QString
 
 
 // Remove all runtime assets from the app data location.
-void PrintJobNocai::cleanupRuntimeAssets() {
+void PrintJobCMYK::cleanupRuntimeAssets() {
     qDebug() << "Cleaning runtime assets in:" << assetsExtractPath;
     QDir dir(assetsExtractPath);
     if (dir.exists()) {
@@ -836,7 +757,7 @@ void PrintJobNocai::cleanupRuntimeAssets() {
 // Commented out a simple Dot Strategy without gating or tonal awareness. Much faster and works for 90% of files
 
 /*
-std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, const std::vector<uint8_t>& channel, int width, int height, const DotStrategy& strategy) {
+std::vector<std::vector<uint8_t>> PrintJobCMYK::dotClassification(const std::vector<uint8_t>& dithered, const std::vector<uint8_t>& mask, const std::vector<uint8_t>& channel, int width, int height, const DotStrategy& strategy) {
 	std::vector<std::vector<uint8_t>> dotMap(height, std::vector<uint8_t>(width, 0));
 	
     for (int y = 0; y < height; ++y) {
@@ -858,7 +779,7 @@ std::vector<std::vector<uint8_t>> PrintJobNocai::dotClassification(const std::ve
 }
 
 
-void PrintJobNocai::apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap, int width, int height) {
+void PrintJobCMYK::apply4x4Promotion(std::vector<std::vector<uint8_t>>& dotMap, int width, int height) {
     
     for (int y = 1; y < height - 2; ++y) {
         for (int x = 1; x < width - 2; ++x) {

@@ -1,4 +1,4 @@
-#include "PrintJobNocai.h"
+#include "PrintJobCMYK.h"
 
 #include <QDebug>
 #include <QDir>
@@ -11,29 +11,29 @@ bool unavailable(const char* operation)
 }
 }
 
-PrintJobNocai::PrintJobNocai(QObject* parent)
+PrintJobCMYK::PrintJobCMYK(QObject* parent)
     : QObject(parent)
 {
 }
 
-void PrintJobNocai::setColorManager(ColorManagementManager* mgr)
+void PrintJobCMYK::setColorManager(ColorManagementManager* mgr)
 {
     m_colorManager = mgr;
 }
 
-void PrintJobNocai::runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath)
+void PrintJobCMYK::runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath)
 {
     Q_UNUSED(jobMap)
     Q_UNUSED(outputPath)
-    unavailable("Nocai PRN generation");
+    unavailable("CMYK PRN generation");
     emit prnGenerationFinished(false);
 }
 
-bool PrintJobNocai::loadInputImage(const QString& imagePath) { Q_UNUSED(imagePath) return unavailable("Image loading for PRN"); }
-bool PrintJobNocai::applyICCConversion(const QString& inputProfile, const QString& outputProfile) { Q_UNUSED(inputProfile) Q_UNUSED(outputProfile) return unavailable("ICC conversion for PRN"); }
-bool PrintJobNocai::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi) { Q_UNUSED(outputPath) Q_UNUSED(xdpi) Q_UNUSED(ydpi) return unavailable("Final PRN generation"); }
+bool PrintJobCMYK::loadInputImage(const QString& imagePath) { Q_UNUSED(imagePath) return unavailable("Image loading for PRN"); }
+bool PrintJobCMYK::applyICCConversion(const QString& inputProfile, const QString& outputProfile) { Q_UNUSED(inputProfile) Q_UNUSED(outputProfile) return unavailable("ICC conversion for PRN"); }
+bool PrintJobCMYK::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi) { Q_UNUSED(outputPath) Q_UNUSED(xdpi) Q_UNUSED(ydpi) return unavailable("Final PRN generation"); }
 
-void PrintJobNocai::prepareNocaiAssets()
+void PrintJobCMYK::prepareAssets()
 {
     if (!m_profiles.isEmpty())
         return;
@@ -48,25 +48,30 @@ void PrintJobNocai::prepareNocaiAssets()
         m_defaultInputCMYKPath = QStringLiteral(":/assets/RIP_App_Generic_CMYK.icc");
 }
 
-void PrintJobNocai::cleanupTemporaryFiles(const QString& baseName, const QString& workingDir)
+void PrintJobCMYK::prepareNocaiAssets()
+{
+    prepareAssets();
+}
+
+void PrintJobCMYK::cleanupTemporaryFiles(const QString& baseName, const QString& workingDir)
 {
     Q_UNUSED(baseName)
     Q_UNUSED(workingDir)
 }
 
-void PrintJobNocai::cleanupRuntimeAssets()
+void PrintJobCMYK::cleanupRuntimeAssets()
 {
 }
 
-QVariantList PrintJobNocai::getAvailableICCProfiles() const { return m_profiles; }
-QString PrintJobNocai::getDefaultOutputICCProfile() const { return m_defaultOutputICCPath; }
-QString PrintJobNocai::getDefaultInputCMYKProfile() const { return m_defaultInputCMYKPath; }
-void PrintJobNocai::setDefaultOutputICCProfile(const QString& outputProfile) { m_defaultOutputICCPath = outputProfile; }
-void PrintJobNocai::setDefaultInputCMYKProfile(const QString& inputProfilePath) { m_defaultInputCMYKPath = inputProfilePath; }
-void PrintJobNocai::enableDefaultInputCMYK(bool enabled) { m_useDefaultInputCMYK = enabled; }
-bool PrintJobNocai::checkDefaultInputCMYK() const { return m_useDefaultInputCMYK; }
+QVariantList PrintJobCMYK::getAvailableICCProfiles() const { return m_profiles; }
+QString PrintJobCMYK::getDefaultOutputICCProfile() const { return m_defaultOutputICCPath; }
+QString PrintJobCMYK::getDefaultInputCMYKProfile() const { return m_defaultInputCMYKPath; }
+void PrintJobCMYK::setDefaultOutputICCProfile(const QString& outputProfile) { m_defaultOutputICCPath = outputProfile; }
+void PrintJobCMYK::setDefaultInputCMYKProfile(const QString& inputProfilePath) { m_defaultInputCMYKPath = inputProfilePath; }
+void PrintJobCMYK::enableDefaultInputCMYK(bool enabled) { m_useDefaultInputCMYK = enabled; }
+bool PrintJobCMYK::checkDefaultInputCMYK() const { return m_useDefaultInputCMYK; }
 
-void PrintJobNocai::addICCProfile(const QString& name, const QString& path)
+void PrintJobCMYK::addICCProfile(const QString& name, const QString& path)
 {
     QVariantMap profile;
     profile["name"] = name;
@@ -74,7 +79,7 @@ void PrintJobNocai::addICCProfile(const QString& name, const QString& path)
     m_profiles.append(profile);
 }
 
-void PrintJobNocai::setDotStrategy(int minInkThreshold,
+void PrintJobCMYK::setDotStrategy(int minInkThreshold,
                                    int smallDotThreshold,
                                    int medDotThreshold,
                                    bool enablePromotion,
