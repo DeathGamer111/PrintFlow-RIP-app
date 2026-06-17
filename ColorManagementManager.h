@@ -33,6 +33,10 @@ class ColorManagementManager : public QObject {
     Q_PROPERTY(int  floorMaxK                  READ floorMaxK               WRITE setFloorMaxK              NOTIFY dotStrategyChanged)
     Q_PROPERTY(bool enableDotSwap              READ enableDotSwap           WRITE setEnableDotSwap          NOTIFY dotStrategyChanged)
 
+    // Direct Nocai SDK print settings
+    Q_PROPERTY(QString multiInkOutputMode      READ multiInkOutputMode      WRITE setMultiInkOutputMode    NOTIFY directPrintSettingsChanged)
+    Q_PROPERTY(QString directPrintSdkRootPath  READ directPrintSdkRootPath  WRITE setDirectPrintSdkRootPath NOTIFY directPrintSettingsChanged)
+
     // Specialty ink helpers
     Q_INVOKABLE QVariantMap getWhiteParams(int inkMode) const;
     Q_INVOKABLE QVariantMap getVarnishParams(int inkMode) const;
@@ -124,6 +128,18 @@ public:
 
     Q_INVOKABLE QString effectiveLinearizationPathForPrinterAndInkMode(const QString& printerName, int inkMode) const;
 
+    // Direct Nocai SDK print settings
+    QString multiInkOutputMode() const;
+    Q_INVOKABLE void setMultiInkOutputMode(const QString& mode);
+
+    QString directPrintSdkRootPath() const;
+    Q_INVOKABLE void setDirectPrintSdkRootPath(const QString& path);
+
+    Q_INVOKABLE QVariantMap directPrintSettings() const;
+    Q_INVOKABLE void setDirectPrintSettings(const QVariantMap& settings);
+    Q_INVOKABLE QVariant directPrintSetting(const QString& key) const;
+    Q_INVOKABLE void setDirectPrintSetting(const QString& key, const QVariant& value);
+
     // Persistence
     Q_INVOKABLE bool load();
     Q_INVOKABLE bool save();
@@ -135,6 +151,7 @@ signals:
     void dotStrategyChanged();
     void multiInkParamsChanged();
     void linearizationChanged();
+    void directPrintSettingsChanged();
 
 private:
     // Persisted per-mode maps
@@ -174,4 +191,8 @@ private:
     int  m_floorRangeK         = 12;
     int  m_floorMaxK           = 0;
     bool m_enableDotSwap       = false;
+
+    QString m_multiInkOutputMode = "prn";
+    QString m_directPrintSdkRootPath;
+    QVariantMap m_directPrintSettings;
 };

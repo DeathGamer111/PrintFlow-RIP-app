@@ -332,6 +332,12 @@ void PrintJobMultiInk::setColorManager(ColorManagementManager* mgr)
 }
 
 
+void PrintJobMultiInk::setDirectPrintClient(NocaiDirectPrintClient* client)
+{
+    m_directPrintClient = client;
+}
+
+
 void PrintJobMultiInk::setInkMode(int mode)
 {
     switch (mode) {
@@ -379,245 +385,37 @@ void PrintJobMultiInk::runPRNGeneration(const QVariantMap& jobMap, const QString
 {
     (void)QtConcurrent::run([=]() {
         bool success = false;
+        if (const_cast<PrintJobMultiInk*>(this)->prepareJobForOutput(jobMap, outputPath)) {
+            RasterPayload payload;
+            const QSize resolution = jobMap.value("resolution").toSize();
+            success = const_cast<PrintJobMultiInk*>(this)->buildRasterPayload(
+                resolution.width(),
+                resolution.height(),
+                payload);
 
-        if (!const_cast<PrintJobMultiInk*>(this)->prepareAssets()) {
-            qWarning() << "PrintJobMultiInk: failed to prepare assets.";
-            emit prnGenerationFinished(false);
-            return;
+            if (success)
+                success = const_cast<PrintJobMultiInk*>(this)->writePRNFile(payload, outputPath);
         }
 
-        qDebug() << "PrintJobMultiInk::runPRNGeneration: assets root ="
-                 << m_assetManager.rootPath();
+        emit prnGenerationFinished(success);
+    });
+}
 
-        const QString imagePath = jobMap.value("imagePath").toString();
-        const QSize resolution = jobMap.value("resolution").toSize();
 
-        int modeInt = const_cast<PrintJobMultiInk*>(this)->inkMode();
-        if (!isSupportedMultiInkMode(modeInt)) {
-            qWarning() << "PrintJobMultiInk: unsupported instance inkMode"
-                       << modeInt << "forcing 4";
-            modeInt = 4;
-            const_cast<PrintJobMultiInk*>(this)->setInkMode(4);
-        }
+void PrintJobMultiInk::runDirectPrint(const QVariantMap& jobMap)
+{
+    (void)QtConcurrent::run([=]() {
+        bool success = false;
+        if (const_cast<PrintJobMultiInk*>(this)->prepareJobForOutput(jobMap, QStringLiteral("(direct print)"))) {
+            RasterPayload payload;
+            const QSize resolution = jobMap.value("resolution").toSize();
+            success = const_cast<PrintJobMultiInk*>(this)->buildRasterPayload(
+                resolution.width(),
+                resolution.height(),
+                payload);
 
-        const QString whiteStrategy = jobMap.value("whiteStrategy").toString().trimmed();
-        const QString varnishType = jobMap.value("varnishType").toString().trimmed();
-        const QString whitePlatePath = jobMap.value("whitePlatePath").toString().trimmed();
-        const QString varnishPlatePath = jobMap.value("varnishPlatePath").toString().trimmed();
-
-        const_cast<PrintJobMultiInk*>(this)->m_whitePlatePath = whitePlatePath;
-        const_cast<PrintJobMultiInk*>(this)->m_varnishPlatePath = varnishPlatePath;
-
-		QVariantMap modeParams;
-        if (m_colorManager) {
-            modeParams = m_colorManager->getMultiInkParams(modeInt);
-            const_cast<PrintJobMultiInk*>(this)->enableLinearization(m_colorManager->linearizationEnabled());
-            
-            if (!modeParams.contains("gcrEnabled")) {
-				modeParams["gcrEnabled"] = false;
-			}
-        }
-
-        qDebug() << "PrintJobMultiInk: linearization enabled =" << (m_enableLinearization ? "true" : "false");
-
-        if (!const_cast<PrintJobMultiInk*>(this)->reloadLinearizationFromManager()) {
-            qWarning() << "PrintJobMultiInk: failed to initialize linearization state.";
-            emit prnGenerationFinished(false);
-            return;
-        }
-
-        bool hasWhiteOverride = false;
-        bool hasVarnishOverride = false;
-
-        const int whiteModeOverride =
-            MultiInkToneBuilder::whiteModeOverrideFromJob(whiteStrategy, hasWhiteOverride);
-        const int varnishModeOverride =
-            MultiInkToneBuilder::varnishModeOverrideFromJob(varnishType, hasVarnishOverride);
-
-        if (hasWhiteOverride) {
-            modeParams["whiteMode"] = whiteModeOverride;
-        }
-
-        if (hasVarnishOverride) {
-            modeParams["varnishMode"] = varnishModeOverride;
-        }
-
-        const_cast<PrintJobMultiInk*>(this)->m_modeParams = modeParams;
-
-        const int minThreshold =
-            (m_colorManager ? m_colorManager->minInkThreshold() : 8);
-        const int smallThreshold =
-            (m_colorManager ? m_colorManager->smallDotThreshold() : 104);
-        const int medThreshold =
-            (m_colorManager ? m_colorManager->medDotThreshold() : 168);
-        const bool promotionEnabled =
-            (m_colorManager ? m_colorManager->enablePromotion() : false);
-
-        const int floorRangeCMY =
-            (m_colorManager ? m_colorManager->floorRangeCMY() : 24);
-        const int floorMaxCMY =
-            (m_colorManager ? m_colorManager->floorMaxCMY() : 2);
-        const int floorRangeK =
-            (m_colorManager ? m_colorManager->floorRangeK() : 12);
-        const int floorMaxK =
-            (m_colorManager ? m_colorManager->floorMaxK() : 0);
-        const bool enableDotSwap =
-            (m_colorManager ? m_colorManager->enableDotSwap() : false);
-
-        const_cast<PrintJobMultiInk*>(this)->setDotStrategy(
-            minThreshold,
-            smallThreshold,
-            medThreshold,
-            promotionEnabled,
-            static_cast<uint8_t>(std::clamp(floorRangeCMY, 0, 64)),
-            static_cast<uint8_t>(std::clamp(floorMaxCMY, 0, 8)),
-            static_cast<uint8_t>(std::clamp(floorRangeK, 0, 64)),
-            static_cast<uint8_t>(std::clamp(floorMaxK, 0, 8)),
-            enableDotSwap
-        );
-
-        auto normalizeLocalPath = [](const QString& s) -> QString {
-            if (s.startsWith("file:", Qt::CaseInsensitive))
-                return QUrl(s).toLocalFile();
-            return s;
-        };
-
-        auto looksLikeIccPath = [&](const QString& s) -> bool {
-            const QString p = normalizeLocalPath(s).trimmed();
-            if (p.isEmpty()) return false;
-            const QString low = p.toLower();
-            if (!(low.endsWith(".icc") || low.endsWith(".icm"))) return false;
-            return QFileInfo::exists(p);
-        };
-
-		const QString jobColorProfile = jobMap.value("colorProfile").toString().trimmed();
-
-		QString outputICC;
-
-		// 1. Per-job override
-		if (looksLikeIccPath(jobColorProfile)) {
-			outputICC = normalizeLocalPath(jobColorProfile);
-		}
-		// 2. Printer settings override -> 3. Family default
-		else if (m_colorManager) {
-			QString selectedPrinter = m_colorManager->selectedPrinter().trimmed();
-
-			// Optional: allow explicit printer name in the job map to override manager state
-			const QString jobPrinterName = jobMap.value("printerName").toString().trimmed();
-			if (!jobPrinterName.isEmpty()) {
-				selectedPrinter = jobPrinterName;
-			}
-
-			const QString resolvedProfile =
-				m_colorManager->effectiveOutputProfileForPrinterAndInkMode(selectedPrinter, modeInt).trimmed();
-
-			if (looksLikeIccPath(resolvedProfile)) {
-				outputICC = normalizeLocalPath(resolvedProfile);
-			}
-		}
-
-		// 4. No global default in the new path
-		if (outputICC.isEmpty()) {
-			qWarning() << "PrintJobMultiInk: no valid output ICC resolved for printer"
-				       << (m_colorManager ? m_colorManager->selectedPrinter() : QString("(none)"))
-				       << "inkMode" << modeInt
-				       << "- expected per-job override, printer family override, or family default.";
-		}
-
-        QString resolvedDeviceLink;
-        auto fileExistsIccLike = [](const QString& path) -> bool {
-            const QString s = path.trimmed();
-            if (s.isEmpty()) return false;
-            const QString p = s.startsWith("file:", Qt::CaseInsensitive)
-                                  ? QUrl(s).toLocalFile()
-                                  : s;
-            const QString low = p.toLower();
-            if (!(low.endsWith(".icc") || low.endsWith(".icm"))) return false;
-            return QFileInfo::exists(p);
-        };
-
-        if (fileExistsIccLike(m_defaultDeviceLinkPath)) {
-            resolvedDeviceLink = normalizeLocalPath(m_defaultDeviceLinkPath);
-        }
-
-        if (m_useDeviceLink && resolvedDeviceLink.isEmpty()) {
-            qWarning() << "PrintJobMultiInk: DeviceLink enabled but no DeviceLink profile selected in UI.";
-        }
-
-        qDebug() << "PrintJobMultiInk: dot strategy updated (ColorManager precedence), inkMode ="
-                 << modeInt
-                 << "outputICC =" << outputICC
-                 << "deviceLinkEnabled =" << (m_useDeviceLink ? "true" : "false")
-                 << "deviceLink =" << (resolvedDeviceLink.isEmpty() ? "(none)" : resolvedDeviceLink);
-
-        dumpMultiInkRunConfig(modeInt,
-                              imagePath,
-                              resolution,
-                              outputPath,
-                              outputICC,
-                              useDefaultInputCMYK,
-                              defaultInputCMYKPath,
-                              m_colorManager,
-                              dotStrategy,
-                              m_modeParams);
-
-        if (loadInputImage(imagePath)) {
-            if (m_useDeviceLink) {
-                if (resolvedDeviceLink.isEmpty()) {
-                    qWarning() << "PrintJobMultiInk: DeviceLink enabled but no DeviceLink profile is set.";
-                    success = false;
-                } else {
-                    qDebug() << "PrintJobMultiInk: applying DeviceLink (overrides ICC):"
-                             << resolvedDeviceLink;
-                    success = applyDeviceLinkConversion(resolvedDeviceLink);
-
-                    if (success && inputImage.colorSpace() != Magick::CMYKColorspace) {
-                        qWarning() << "PrintJobMultiInk: DeviceLink conversion completed but image is not CMYK.";
-                        success = false;
-                    }
-                }
-            } else {
-                if (inputImage.colorSpace() != Magick::CMYKColorspace) {
-                    qDebug() << "PrintJobMultiInk: input NOT CMYK — applying ICC (sRGB → printer CMYK)";
-
-                    const QString inputICC = m_assetManager.assetPath("sRGBProfile.icm");
-                    if (!outputICC.isEmpty()) {
-                        success = applyICCConversion(inputICC, outputICC);
-                    } else {
-                        qWarning() << "PrintJobMultiInk: no output ICC available; cannot convert.";
-                        success = false;
-                    }
-                } else {
-                    if (useDefaultInputCMYK) {
-                        QString inCMYK = defaultInputCMYKPath;
-                        if (m_colorManager) {
-                            const QString cmIn = m_colorManager->defaultInputProfile().trimmed();
-                            if (!cmIn.isEmpty())
-                                inCMYK = cmIn;
-                        }
-
-                        if (!inCMYK.isEmpty() && !outputICC.isEmpty()) {
-                            qDebug() << "PrintJobMultiInk: input CMYK — applying ICC (Default CMYK → printer CMYK)";
-                            success = applyICCConversion(inCMYK, outputICC);
-                        } else {
-                            qWarning() << "PrintJobMultiInk: CMYK input ICC or output ICC missing; skipping conversion.";
-                            success = true;
-                        }
-                    } else {
-                        qDebug() << "PrintJobMultiInk: input CMYK — skipping ICC conversion.";
-                        success = true;
-                    }
-                }
-            }
-
-            screenSeed = qHash(imagePath) ^
-                         static_cast<uint32_t>(QDateTime::currentMSecsSinceEpoch() & 0xFFFFFFFF);
-
-            if (success) {
-                const int xdpi = resolution.width();
-                const int ydpi = resolution.height();
-                success = generateFinalPRN(outputPath, xdpi, ydpi);
-            }
+            if (success)
+                success = const_cast<PrintJobMultiInk*>(this)->sendDirectPrint(payload, jobMap);
         }
 
         emit prnGenerationFinished(success);
@@ -629,6 +427,227 @@ void PrintJobMultiInk::runPRNGeneration(const QVariantMap& jobMap, const QString
 // -----------------------------------------------------------------------------
 // Input loading / raw asset helpers
 // -----------------------------------------------------------------------------
+
+bool PrintJobMultiInk::prepareJobForOutput(const QVariantMap& jobMap, const QString& outputPathForLogging)
+{
+    bool success = false;
+
+    if (!prepareAssets()) {
+        qWarning() << "PrintJobMultiInk: failed to prepare assets.";
+        return false;
+    }
+
+    qDebug() << "PrintJobMultiInk::prepareJobForOutput: assets root ="
+             << m_assetManager.rootPath();
+
+    const QString imagePath = jobMap.value("imagePath").toString();
+    const QSize resolution = jobMap.value("resolution").toSize();
+
+    int modeInt = inkMode();
+    if (!isSupportedMultiInkMode(modeInt)) {
+        qWarning() << "PrintJobMultiInk: unsupported instance inkMode"
+                   << modeInt << "forcing 4";
+        modeInt = 4;
+        setInkMode(4);
+    }
+
+    const QString whiteStrategy = jobMap.value("whiteStrategy").toString().trimmed();
+    const QString varnishType = jobMap.value("varnishType").toString().trimmed();
+    m_whitePlatePath = jobMap.value("whitePlatePath").toString().trimmed();
+    m_varnishPlatePath = jobMap.value("varnishPlatePath").toString().trimmed();
+
+    QVariantMap modeParams;
+    if (m_colorManager) {
+        modeParams = m_colorManager->getMultiInkParams(modeInt);
+        enableLinearization(m_colorManager->linearizationEnabled());
+
+        if (!modeParams.contains("gcrEnabled")) {
+            modeParams["gcrEnabled"] = false;
+        }
+    }
+
+    qDebug() << "PrintJobMultiInk: linearization enabled =" << (m_enableLinearization ? "true" : "false");
+
+    if (!reloadLinearizationFromManager()) {
+        qWarning() << "PrintJobMultiInk: failed to initialize linearization state.";
+        return false;
+    }
+
+    bool hasWhiteOverride = false;
+    bool hasVarnishOverride = false;
+
+    const int whiteModeOverride =
+        MultiInkToneBuilder::whiteModeOverrideFromJob(whiteStrategy, hasWhiteOverride);
+    const int varnishModeOverride =
+        MultiInkToneBuilder::varnishModeOverrideFromJob(varnishType, hasVarnishOverride);
+
+    if (hasWhiteOverride) {
+        modeParams["whiteMode"] = whiteModeOverride;
+    }
+
+    if (hasVarnishOverride) {
+        modeParams["varnishMode"] = varnishModeOverride;
+    }
+
+    m_modeParams = modeParams;
+
+    const int minThreshold =
+        (m_colorManager ? m_colorManager->minInkThreshold() : 8);
+    const int smallThreshold =
+        (m_colorManager ? m_colorManager->smallDotThreshold() : 104);
+    const int medThreshold =
+        (m_colorManager ? m_colorManager->medDotThreshold() : 168);
+    const bool promotionEnabled =
+        (m_colorManager ? m_colorManager->enablePromotion() : false);
+
+    const int floorRangeCMY =
+        (m_colorManager ? m_colorManager->floorRangeCMY() : 24);
+    const int floorMaxCMY =
+        (m_colorManager ? m_colorManager->floorMaxCMY() : 2);
+    const int floorRangeK =
+        (m_colorManager ? m_colorManager->floorRangeK() : 12);
+    const int floorMaxK =
+        (m_colorManager ? m_colorManager->floorMaxK() : 0);
+    const bool enableDotSwap =
+        (m_colorManager ? m_colorManager->enableDotSwap() : false);
+
+    setDotStrategy(
+        minThreshold,
+        smallThreshold,
+        medThreshold,
+        promotionEnabled,
+        static_cast<uint8_t>(std::clamp(floorRangeCMY, 0, 64)),
+        static_cast<uint8_t>(std::clamp(floorMaxCMY, 0, 8)),
+        static_cast<uint8_t>(std::clamp(floorRangeK, 0, 64)),
+        static_cast<uint8_t>(std::clamp(floorMaxK, 0, 8)),
+        enableDotSwap
+    );
+
+    auto normalizeLocalPath = [](const QString& s) -> QString {
+        if (s.startsWith("file:", Qt::CaseInsensitive))
+            return QUrl(s).toLocalFile();
+        return s;
+    };
+
+    auto looksLikeIccPath = [&](const QString& s) -> bool {
+        const QString p = normalizeLocalPath(s).trimmed();
+        if (p.isEmpty()) return false;
+        const QString low = p.toLower();
+        if (!(low.endsWith(".icc") || low.endsWith(".icm"))) return false;
+        return QFileInfo::exists(p);
+    };
+
+    const QString jobColorProfile = jobMap.value("colorProfile").toString().trimmed();
+    QString outputICC;
+
+    if (looksLikeIccPath(jobColorProfile)) {
+        outputICC = normalizeLocalPath(jobColorProfile);
+    } else if (m_colorManager) {
+        QString selectedPrinter = m_colorManager->selectedPrinter().trimmed();
+
+        const QString jobPrinterName = jobMap.value("printerName").toString().trimmed();
+        if (!jobPrinterName.isEmpty()) {
+            selectedPrinter = jobPrinterName;
+        }
+
+        const QString resolvedProfile =
+            m_colorManager->effectiveOutputProfileForPrinterAndInkMode(selectedPrinter, modeInt).trimmed();
+
+        if (looksLikeIccPath(resolvedProfile)) {
+            outputICC = normalizeLocalPath(resolvedProfile);
+        }
+    }
+
+    if (outputICC.isEmpty()) {
+        qWarning() << "PrintJobMultiInk: no valid output ICC resolved for printer"
+                   << (m_colorManager ? m_colorManager->selectedPrinter() : QString("(none)"))
+                   << "inkMode" << modeInt
+                   << "- expected per-job override, printer family override, or family default.";
+    }
+
+    QString resolvedDeviceLink;
+    if (looksLikeIccPath(m_defaultDeviceLinkPath)) {
+        resolvedDeviceLink = normalizeLocalPath(m_defaultDeviceLinkPath);
+    }
+
+    if (m_useDeviceLink && resolvedDeviceLink.isEmpty()) {
+        qWarning() << "PrintJobMultiInk: DeviceLink enabled but no DeviceLink profile selected in UI.";
+    }
+
+    qDebug() << "PrintJobMultiInk: dot strategy updated (ColorManager precedence), inkMode ="
+             << modeInt
+             << "outputICC =" << outputICC
+             << "deviceLinkEnabled =" << (m_useDeviceLink ? "true" : "false")
+             << "deviceLink =" << (resolvedDeviceLink.isEmpty() ? "(none)" : resolvedDeviceLink);
+
+    dumpMultiInkRunConfig(modeInt,
+                          imagePath,
+                          resolution,
+                          outputPathForLogging,
+                          outputICC,
+                          useDefaultInputCMYK,
+                          defaultInputCMYKPath,
+                          m_colorManager,
+                          dotStrategy,
+                          m_modeParams);
+
+    if (!loadInputImage(imagePath))
+        return false;
+
+    if (m_useDeviceLink) {
+        if (resolvedDeviceLink.isEmpty()) {
+            qWarning() << "PrintJobMultiInk: DeviceLink enabled but no DeviceLink profile is set.";
+            success = false;
+        } else {
+            qDebug() << "PrintJobMultiInk: applying DeviceLink (overrides ICC):"
+                     << resolvedDeviceLink;
+            success = applyDeviceLinkConversion(resolvedDeviceLink);
+
+            if (success && inputImage.colorSpace() != Magick::CMYKColorspace) {
+                qWarning() << "PrintJobMultiInk: DeviceLink conversion completed but image is not CMYK.";
+                success = false;
+            }
+        }
+    } else {
+        if (inputImage.colorSpace() != Magick::CMYKColorspace) {
+            qDebug() << "PrintJobMultiInk: input NOT CMYK - applying ICC (sRGB -> printer CMYK)";
+
+            const QString inputICC = m_assetManager.assetPath("sRGBProfile.icm");
+            if (!outputICC.isEmpty()) {
+                success = applyICCConversion(inputICC, outputICC);
+            } else {
+                qWarning() << "PrintJobMultiInk: no output ICC available; cannot convert.";
+                success = false;
+            }
+        } else {
+            if (useDefaultInputCMYK) {
+                QString inCMYK = defaultInputCMYKPath;
+                if (m_colorManager) {
+                    const QString cmIn = m_colorManager->defaultInputProfile().trimmed();
+                    if (!cmIn.isEmpty())
+                        inCMYK = cmIn;
+                }
+
+                if (!inCMYK.isEmpty() && !outputICC.isEmpty()) {
+                    qDebug() << "PrintJobMultiInk: input CMYK - applying ICC (Default CMYK -> printer CMYK)";
+                    success = applyICCConversion(inCMYK, outputICC);
+                } else {
+                    qWarning() << "PrintJobMultiInk: CMYK input ICC or output ICC missing; skipping conversion.";
+                    success = true;
+                }
+            } else {
+                qDebug() << "PrintJobMultiInk: input CMYK - skipping ICC conversion.";
+                success = true;
+            }
+        }
+    }
+
+    screenSeed = qHash(imagePath) ^
+                 static_cast<uint32_t>(QDateTime::currentMSecsSinceEpoch() & 0xFFFFFFFF);
+
+    return success;
+}
+
 
 bool PrintJobMultiInk::loadInputImage(const QString& imagePath)
 {
@@ -1091,6 +1110,16 @@ bool PrintJobMultiInk::reloadLinearizationFromManager()
 
 bool PrintJobMultiInk::generateFinalPRN(const QString& outputPath, int xdpi, int ydpi)
 {
+    RasterPayload payload;
+    if (!buildRasterPayload(xdpi, ydpi, payload))
+        return false;
+
+    return writePRNFile(payload, outputPath);
+}
+
+
+bool PrintJobMultiInk::buildRasterPayload(int xdpi, int ydpi, RasterPayload& payload)
+{
     try {
         if (inputImage.colorSpace() != Magick::CMYKColorspace) {
             qWarning() << "PrintJobMultiInk: input not CMYK after ICC conversion.";
@@ -1266,42 +1295,90 @@ bool PrintJobMultiInk::generateFinalPRN(const QString& outputPath, int xdpi, int
             return false;
         }
 
-        return writePRNFile(allPacked, channelOrder, width, height, xdpi, ydpi, outputPath);
+        payload.packedLines = std::move(allPacked);
+        payload.channelOrder = std::move(channelOrder);
+        payload.width = width;
+        payload.height = height;
+        payload.xdpi = xdpi;
+        payload.ydpi = ydpi;
+        payload.bytesPerLine = payload.packedLines.empty() || payload.packedLines[0].empty()
+            ? 0
+            : static_cast<int>(payload.packedLines[0][0].size());
+
+        return applySpecialtyBlanking(payload);
 
     } catch (const Magick::Exception& e) {
-        qWarning() << "PrintJobMultiInk: PRN generation failed:" << e.what();
+        qWarning() << "PrintJobMultiInk: raster payload generation failed:" << e.what();
         return false;
     }
 }
 
 
-bool PrintJobMultiInk::writePRNFile(
-    const std::vector<std::vector<std::vector<uint8_t>>>& packedLines,
-    const std::vector<int>& channelOrder,
-    int width,
-    int height,
-    int xdpi,
-    int ydpi,
-    const QString& outputPath)
+bool PrintJobMultiInk::applySpecialtyBlanking(RasterPayload& payload) const
 {
-    if (packedLines.empty() || packedLines[0].empty()) {
+    if (payload.packedLines.empty() || payload.packedLines[0].empty()) {
         qWarning() << "PrintJobMultiInk: packedLines empty.";
         return false;
     }
 
-    const uint32_t colors = static_cast<uint32_t>(channelOrder.size());
-    const uint32_t bytesPerLine = static_cast<uint32_t>(packedLines[0][0].size());
+    const int whiteMode = std::clamp(m_modeParams.value("whiteMode", 0).toInt(), 0, 3);
+    const int varnishMode = std::clamp(m_modeParams.value("varnishMode", 0).toInt(), 0, 3);
+
+    const bool whiteEnabled = (whiteMode != static_cast<int>(SpecialtyMode::Off));
+    const bool varnishEnabled = (varnishMode != static_cast<int>(SpecialtyMode::Off));
+
+    std::vector<uint8_t> blankRow(static_cast<size_t>(payload.bytesPerLine), 0);
+
+    auto isWhiteChannel = [&](int ch) -> bool {
+        switch (m_inkMode) {
+        case InkMode::FiveColor_YMCK_W:
+            return (ch == 4);
+        case InkMode::SevenColor_YMCK_Lm_Lc_W:
+            return (ch == 6);
+        case InkMode::TenColor_YMCK_Lm_Lc_Lk_LLk_W_V:
+            return (ch == 8);
+        default:
+            return false;
+        }
+    };
+
+    auto isVarnishChannel = [&](int ch) -> bool {
+        return (m_inkMode == InkMode::TenColor_YMCK_Lm_Lc_Lk_LLk_W_V && ch == 9);
+    };
+
+    for (int row = 0; row < payload.height; ++row) {
+        for (int ch : payload.channelOrder) {
+            const bool forceBlank =
+                (isWhiteChannel(ch) && !whiteEnabled) ||
+                (isVarnishChannel(ch) && !varnishEnabled);
+
+            if (forceBlank)
+                payload.packedLines[ch][row] = blankRow;
+        }
+    }
+
+    return true;
+}
+
+
+bool PrintJobMultiInk::writePRNFile(const RasterPayload& payload,
+                                    const QString& outputPath)
+{
+    if (payload.packedLines.empty() || payload.packedLines[0].empty()) {
+        qWarning() << "PrintJobMultiInk: packedLines empty.";
+        return false;
+    }
+
+    const uint32_t colors = static_cast<uint32_t>(payload.channelOrder.size());
+    const uint32_t bytesPerLine = static_cast<uint32_t>(payload.bytesPerLine);
 
     if (colors == 0 || colors > 16) {
         qWarning() << "PrintJobMultiInk: invalid channel count for header:" << colors;
         return false;
     }
 
-    xdpi = std::clamp(xdpi, 1, kBaseXDpi);
-    ydpi = snapToMultiple(ydpi, kBaseYDpi);
-
-    float fxDpi = static_cast<float>(xdpi);
-    float fyDpi = static_cast<float>(ydpi);
+    float fxDpi = static_cast<float>(payload.xdpi);
+    float fyDpi = static_cast<float>(payload.ydpi);
 
     if (fxDpi > 720.0f) {
         qWarning() << "PrintJobMultiInk: xDpi" << fxDpi << "exceeds 720, clamping.";
@@ -1322,8 +1399,8 @@ bool PrintJobMultiInk::writePRNFile(
     std::memcpy(hdr.magic, magicStr, sizeof(hdr.magic));
 
     hdr.version = 0x0001;
-    hdr.pixelWidth = static_cast<uint32_t>(width);
-    hdr.pixelHeight = static_cast<uint32_t>(height);
+    hdr.pixelWidth = static_cast<uint32_t>(payload.width);
+    hdr.pixelHeight = static_cast<uint32_t>(payload.height);
     hdr.xDpi = fxDpi;
     hdr.yDpi = fyDpi;
     hdr.bytesPerLine = bytesPerLine;
@@ -1332,44 +1409,13 @@ bool PrintJobMultiInk::writePRNFile(
     hdr.colorNum = static_cast<uint8_t>(colors);
 
     std::memset(hdr.colorList, 0x00, sizeof(hdr.colorList));
-    buildColorListForMode(m_inkMode, channelOrder, hdr.colorList);
+    buildColorListForMode(m_inkMode, payload.channelOrder, hdr.colorList);
 
     out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
 
-    const int whiteMode = std::clamp(m_modeParams.value("whiteMode", 0).toInt(), 0, 3);
-    const int varnishMode = std::clamp(m_modeParams.value("varnishMode", 0).toInt(), 0, 3);
-
-    const bool whiteEnabled = (whiteMode != static_cast<int>(SpecialtyMode::Off));
-    const bool varnishEnabled = (varnishMode != static_cast<int>(SpecialtyMode::Off));
-
-    std::vector<uint8_t> blankRow(bytesPerLine, 0);
-
-    auto isWhiteChannel = [&](int ch) -> bool {
-        switch (m_inkMode) {
-        case InkMode::FiveColor_YMCK_W:
-            return (ch == 4);
-        case InkMode::SevenColor_YMCK_Lm_Lc_W:
-            return (ch == 6);
-        case InkMode::TenColor_YMCK_Lm_Lc_Lk_LLk_W_V:
-            return (ch == 8);
-        default:
-            return false;
-        }
-    };
-
-    auto isVarnishChannel = [&](int ch) -> bool {
-        return (m_inkMode == InkMode::TenColor_YMCK_Lm_Lc_Lk_LLk_W_V && ch == 9);
-    };
-
-    for (int row = 0; row < height; ++row) {
-        for (int ch : channelOrder) {
-            const bool forceBlank =
-                (isWhiteChannel(ch) && !whiteEnabled) ||
-                (isVarnishChannel(ch) && !varnishEnabled);
-
-            const std::vector<uint8_t>& src =
-                forceBlank ? blankRow : packedLines[ch][row];
-
+    for (int row = 0; row < payload.height; ++row) {
+        for (int ch : payload.channelOrder) {
+            const std::vector<uint8_t>& src = payload.packedLines[ch][row];
             out.write(reinterpret_cast<const char*>(src.data()), src.size());
         }
     }
@@ -1377,14 +1423,85 @@ bool PrintJobMultiInk::writePRNFile(
     out.close();
 
     qDebug() << "PrintJobMultiInk: PRN created at" << outputPath
-             << "width" << width
-             << "height" << height
+             << "width" << payload.width
+             << "height" << payload.height
              << "colors" << colors
-             << "bytesPerLine" << bytesPerLine
-             << "whiteEnabled" << whiteEnabled
-             << "varnishEnabled" << varnishEnabled;
+             << "bytesPerLine" << bytesPerLine;
 
     return true;
+}
+
+
+bool PrintJobMultiInk::sendDirectPrint(const RasterPayload& payload, const QVariantMap& jobMap)
+{
+    if (!m_directPrintClient) {
+        qWarning() << "PrintJobMultiInk: direct print client is not attached.";
+        return false;
+    }
+
+    NocaiDirectPrintRaster raster;
+    raster.packedLines = &payload.packedLines;
+    raster.channelOrder = payload.channelOrder;
+    raster.width = payload.width;
+    raster.height = payload.height;
+    raster.xdpi = payload.xdpi;
+    raster.ydpi = payload.ydpi;
+    raster.bytesPerLine = payload.bytesPerLine;
+
+    const NocaiDirectPrintSettings settings = directPrintSettingsFromJob(jobMap, payload);
+    const bool ok = m_directPrintClient->printPackedJob(raster, settings);
+    if (!ok) {
+        qWarning() << "PrintJobMultiInk: direct print failed:"
+                   << m_directPrintClient->lastError();
+    }
+
+    return ok;
+}
+
+
+NocaiDirectPrintSettings PrintJobMultiInk::directPrintSettingsFromJob(const QVariantMap& jobMap,
+                                                                      const RasterPayload& payload) const
+{
+    QVariantMap settings;
+    if (m_colorManager)
+        settings = m_colorManager->directPrintSettings();
+
+    const QVariantMap jobSettings = jobMap.value("directPrintSettings").toMap();
+    for (auto it = jobSettings.begin(); it != jobSettings.end(); ++it)
+        settings[it.key()] = it.value();
+
+    auto value = [&](const QString& key, int fallback) -> int {
+        return settings.value(key, fallback).toInt();
+    };
+
+    NocaiDirectPrintSettings out;
+    out.printerIndex = value("selectedPrinterIndex", -1);
+    out.printDirection = value("printDirection", 0);
+    out.printSpeed = value("printSpeed", 1);
+    out.wcSequence = value("wcSequence", 0);
+    out.eclosionGrade = value("eclosionGrade", 0);
+    out.headSelect = value("headSelect", 0);
+    out.whiteInkPercent = value("whiteInkPercent", 0);
+    out.whiteInkPassCount = value("whiteInkPassCount", 0);
+    out.varnishInkPercent = value("varnishInkPercent", 0);
+    out.varnishInkPassCount = value("varnishInkPassCount", 0);
+    out.headVoltage = value("headVoltage", 512);
+    out.disableUv0 = value("disableUv0", 0);
+    out.disableUv1 = value("disableUv1", 0);
+    out.disableUv2 = value("disableUv2", 0);
+    out.disableUv3 = value("disableUv3", 0);
+    out.disableUv4 = value("disableUv4", 0);
+    out.disableUv5 = value("disableUv5", 0);
+    out.carReset = value("carReset", 1);
+    out.stripBlank = value("stripBlank", 1);
+    out.blankDistance = value("blankDistance", 0);
+    out.pass = value("pass", 0);
+    out.vsdMode = value("vsdMode", 0);
+
+    if (out.pass <= 0)
+        out.pass = std::max(1, payload.ydpi / kBaseYDpi);
+
+    return out;
 }
 
 

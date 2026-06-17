@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=RIP App
+Comment=Raster image processor for Nocai printers
+Exec=appRIPPrinterApp
+Icon=RIP_App_Demo
+Terminal=false
+Categories=Graphics;Printing;
+StartupNotify=true

@@ -254,12 +254,13 @@ Page {
 		    anchors.rightMargin: 12
 		    spacing: 10
 
-		    ThemedButton {
-		        text: "Back"
-		        theme: root.theme
-				padding: 12
-				font.pixelSize: 15
-		        onClicked: root.stackView.pop()
+			    ThemedButton {
+			        text: "Back"
+			        theme: root.theme
+                    Layout.preferredWidth: 88
+					padding: 12
+					font.pixelSize: 15
+			        onClicked: root.stackView.pop()
 		    }
 
 		    Item { Layout.fillWidth: true }
@@ -275,12 +276,13 @@ Page {
 
 		    Item { Layout.fillWidth: true }
 
-		    ThemedButton {
-		        text: "Save"
-		        theme: root.theme
-				padding: 12
-				font.pixelSize: 15
-		        onClicked: root.doSave()
+			    ThemedButton {
+			        text: "Save"
+			        theme: root.theme
+                    Layout.preferredWidth: 88
+					padding: 12
+					font.pixelSize: 15
+			        onClicked: root.doSave()
 		    }
 		}
 	}
@@ -1577,4 +1579,3 @@ Page {
         parent: Overlay.overlay
     }
 }
-

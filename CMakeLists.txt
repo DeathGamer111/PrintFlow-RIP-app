@@ -25,6 +25,7 @@ qt_add_executable(appRIPPrinterApp
     PrintJobOutput.h PrintJobOutput.cpp
     PrintJobNocai.h PrintJobNocai.cpp
     PrintJobMultiInk.h PrintJobMultiInk.cpp
+    NocaiDirectPrintClient.h NocaiDirectPrintClient.cpp
     ImageLoader.h ImageLoader.cpp
     ImageEditor.h ImageEditor.cpp
     ColorProfile.h ColorProfile.cpp
@@ -46,6 +47,7 @@ target_sources(appRIPPrinterApp PRIVATE
     PrintJobOutput.h
     PrintJobNocai.h
     PrintJobMultiInk.h
+    NocaiDirectPrintClient.h
     ColorProfile.h
     ColorManagementManager.h
     AssetManager.h
@@ -67,6 +69,7 @@ qt_add_resources(appRIPPrinterApp
         qml/ImageEditorView.qml
         qml/ImpositionView.qml
         qml/PrinterSetupView.qml
+        qml/PrinterMaintenanceView.qml
         qml/DraggableItem.qml
         qml/ColorManagementView.qml
         qml/Toast.qml

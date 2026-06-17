@@ -30,6 +30,29 @@ ApplicationWindow {
         property bool usingSimulatedPrinter: true					// When true, use mock device behavior.
 		property bool usingMultiInkPrinter: true					// When true, use the PrintJobMultiInk backend.
 		property int multiInkInkMode: 10							// 4,5,6,7,8,10 – current ink layout.
+        property string multiInkOutputMode: colorManager.multiInkOutputMode
+        property int sdkSelectedPrinterIndex: colorManager.directPrintSetting("selectedPrinterIndex")
+        property int sdkPrintDirection: colorManager.directPrintSetting("printDirection")
+        property int sdkPrintSpeed: colorManager.directPrintSetting("printSpeed")
+        property int sdkWcSequence: colorManager.directPrintSetting("wcSequence")
+        property int sdkEclosionGrade: colorManager.directPrintSetting("eclosionGrade")
+        property int sdkHeadSelect: colorManager.directPrintSetting("headSelect")
+        property int sdkWhiteInkPercent: colorManager.directPrintSetting("whiteInkPercent")
+        property int sdkWhiteInkPassCount: colorManager.directPrintSetting("whiteInkPassCount")
+        property int sdkVarnishInkPercent: colorManager.directPrintSetting("varnishInkPercent")
+        property int sdkVarnishInkPassCount: colorManager.directPrintSetting("varnishInkPassCount")
+        property int sdkHeadVoltage: colorManager.directPrintSetting("headVoltage")
+        property int sdkDisableUv0: colorManager.directPrintSetting("disableUv0")
+        property int sdkDisableUv1: colorManager.directPrintSetting("disableUv1")
+        property int sdkDisableUv2: colorManager.directPrintSetting("disableUv2")
+        property int sdkDisableUv3: colorManager.directPrintSetting("disableUv3")
+        property int sdkDisableUv4: colorManager.directPrintSetting("disableUv4")
+        property int sdkDisableUv5: colorManager.directPrintSetting("disableUv5")
+        property int sdkCarReset: colorManager.directPrintSetting("carReset")
+        property int sdkStripBlank: colorManager.directPrintSetting("stripBlank")
+        property int sdkBlankDistance: colorManager.directPrintSetting("blankDistance")
+        property int sdkPass: colorManager.directPrintSetting("pass")
+        property int sdkVsdMode: colorManager.directPrintSetting("vsdMode")
         property bool isGeneratingPRN: false						// Global flag to gate UI during PRN generation.
     }
 
@@ -42,6 +65,7 @@ ApplicationWindow {
         Component.onCompleted: {
         	// Startup defaults so the app is ready to print immediately
         	colorManager.selectedPrinter = appState.selectedPrinter
+            nocaiDirectPrint.sdkRootPath = colorManager.directPrintSdkRootPath
         	
 			printJobMultiInk.setInkMode(appState.multiInkInkMode)
 		    printJobMultiInk.enableDefaultInputCMYK(true)

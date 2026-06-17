@@ -15,6 +15,7 @@ import "."
 Page {
     id: editorPage
     required property string imagePath
+    required property StackView stackView
     required property Theme theme
 
     background: Rectangle { color: theme.bg }
@@ -106,6 +107,7 @@ Page {
             ThemedButton {
                 text: "Back"
                 theme: editorPage.theme
+                Layout.preferredWidth: 88
                 padding: 12
                 font.pixelSize: 15
                 onClicked: editorPage.doBack()
@@ -127,6 +129,7 @@ Page {
             ThemedButton {
                 text: "Save"
                 theme: editorPage.theme
+                Layout.preferredWidth: 88
                 padding: 12
                 font.pixelSize: 15
                 onClicked: editorPage.doSave()
@@ -722,4 +725,3 @@ Page {
         }
     }
 }
-

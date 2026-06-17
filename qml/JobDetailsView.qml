@@ -303,12 +303,13 @@ Item {
 				anchors.rightMargin: 12
 				spacing: 10
 
-				ThemedButton {
-				    text: "Back"
-				    theme: root.theme
-				    padding: 12
-				    font.pixelSize: 15
-				    onClicked: {
+					ThemedButton {
+					    text: "Back"
+					    theme: root.theme
+					    Layout.preferredWidth: 88
+					    padding: 12
+					    font.pixelSize: 15
+					    onClicked: {
 				        if (tempPreviewPath !== "") {
 				            imageLoader.deleteTemporaryFile(tempPreviewPath)
 				            tempPreviewPath = ""
@@ -331,12 +332,13 @@ Item {
 
 				Item { Layout.fillWidth: true }
 
-				ThemedButton {
-				    text: "Save"
-				    theme: root.theme
-				    padding: 12
-				    font.pixelSize: 15
-				    onClicked: {
+					ThemedButton {
+					    text: "Save"
+					    theme: root.theme
+					    Layout.preferredWidth: 88
+					    padding: 12
+					    font.pixelSize: 15
+					    onClicked: {
 				        jobModel.updateJob(jobIndex, {
 				            name: jobNameField.text,
 				            imagePath: jobData.imagePath,
@@ -487,10 +489,14 @@ Item {
                     theme: root.theme
 					padding: 12
 					font.pixelSize: 14
-                    onClicked: {
-                        stackView.push("qrc:/qml/ImageEditorView.qml", { "imagePath": imagePath, theme: root.theme })
-                    }
-                }
+	                    onClicked: {
+	                        stackView.push("qrc:/qml/ImageEditorView.qml", {
+	                            "imagePath": imagePath,
+	                            "stackView": stackView,
+	                            "theme": root.theme
+	                        })
+	                    }
+	                }
 
                 ThemedButton {
                     text: "Edit Imposition"
@@ -499,13 +505,14 @@ Item {
                     padding: 12
 					font.pixelSize: 14
                     onClicked: {
-						stackView.push("qrc:/qml/ImpositionView.qml", {
-							"jobIndex": jobIndex,
-							"jobModel": jobModel,
-							"initialImagePath": imagePath,
-							theme: root.theme
-						})
-                    }
+							stackView.push("qrc:/qml/ImpositionView.qml", {
+								"jobIndex": jobIndex,
+								"jobModel": jobModel,
+								"stackView": stackView,
+								"initialImagePath": imagePath,
+								"theme": root.theme
+							})
+	                    }
                 }
             }
 
@@ -921,4 +928,3 @@ Item {
         }
     }
 }
-

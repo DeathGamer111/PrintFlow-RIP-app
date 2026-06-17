@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QImageReader>
+#include <QIcon>
 #include <QPalette>
 #include <QStyleFactory>
 
@@ -10,6 +11,7 @@
 #include "PrintJobOutput.h"
 #include "PrintJobNocai.h"
 #include "PrintJobMultiInk.h"
+#include "NocaiDirectPrintClient.h"
 #include "ImageEditor.h"
 #include "ColorProfile.h"
 #include "ColorManagementManager.h"
@@ -27,6 +29,8 @@
 int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
+    app.setDesktopFileName(QStringLiteral("RIP_App_Demo"));
+    app.setWindowIcon(QIcon(QStringLiteral(":/assets/logo.png")));
   
     // Optional: set Material theme + accent via env vars
     qputenv("QT_QUICK_CONTROLS_MATERIAL_PRIMARY", "#14181F"); // charcoal
@@ -41,6 +45,7 @@ int main(int argc, char *argv[]) {
     ImageEditor imageEditor;
     PrintJobOutput printJobOutput;
     PrintJobNocai printJobNocaiOutput;
+    NocaiDirectPrintClient nocaiDirectPrint;
     PrintJobMultiInk printJobMultiInk;
     ColorProfile colorProfile;
     ColorManagementManager colorManager;
@@ -51,6 +56,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("imageEditor", &imageEditor);
     engine.rootContext()->setContextProperty("printJobOutput", &printJobOutput);
     engine.rootContext()->setContextProperty("printJobNocai", &printJobNocaiOutput);
+    engine.rootContext()->setContextProperty("nocaiDirectPrint", &nocaiDirectPrint);
     engine.rootContext()->setContextProperty("printJobMultiInk", &printJobMultiInk);
     engine.rootContext()->setContextProperty("colorProfile", &colorProfile);
     engine.rootContext()->setContextProperty("colorManager", &colorManager);
@@ -60,6 +66,7 @@ int main(int argc, char *argv[]) {
 
     // bind shared ColorManager to both backends
     printJobMultiInk.setColorManager(&colorManager);
+    printJobMultiInk.setDirectPrintClient(&nocaiDirectPrint);
     printJobNocaiOutput.setColorManager(&colorManager);
     
     // Cap decode allocations to reduce OOM risk with very large images (MB).

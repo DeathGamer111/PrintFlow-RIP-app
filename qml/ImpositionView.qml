@@ -14,6 +14,7 @@ Page {
     // Model hooks
     required property int jobIndex
     required property var jobModel
+    required property StackView stackView
     required property Theme theme
     
     // Optional override so the image can display even if the job hasn’t been saved yet
@@ -139,6 +140,7 @@ Page {
             ThemedButton {
                 text: "Back"
                 theme: impositionView.theme
+                Layout.preferredWidth: 88
                 padding: 12
                 font.pixelSize: 15
                 onClicked: impositionView.doBack()
@@ -160,6 +162,7 @@ Page {
             ThemedButton {
                 text: "Save"
                 theme: impositionView.theme
+                Layout.preferredWidth: 88
                 padding: 12
                 font.pixelSize: 15
                 enabled: jobData().imagePath && jobData().imagePath.length > 0
@@ -536,4 +539,3 @@ Page {
         parent: Overlay.overlay
     }
 }
-

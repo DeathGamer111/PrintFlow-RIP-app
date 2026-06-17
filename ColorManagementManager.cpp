@@ -69,6 +69,70 @@ static QJsonObject variantMapToJsonObject(const QVariantMap& m) {
 }
 
 
+static QVariantMap defaultDirectPrintSettings() {
+    QVariantMap m;
+    m["selectedPrinterIndex"] = -1;
+    m["printDirection"] = 0;
+    m["printSpeed"] = 1;
+    m["wcSequence"] = 0;
+    m["eclosionGrade"] = 0;
+    m["headSelect"] = 0;
+    m["whiteInkPercent"] = 0;
+    m["whiteInkPassCount"] = 0;
+    m["varnishInkPercent"] = 0;
+    m["varnishInkPassCount"] = 0;
+    m["headVoltage"] = 512;
+    m["disableUv0"] = 0;
+    m["disableUv1"] = 0;
+    m["disableUv2"] = 0;
+    m["disableUv3"] = 0;
+    m["disableUv4"] = 0;
+    m["disableUv5"] = 0;
+    m["carReset"] = 1;
+    m["stripBlank"] = 1;
+    m["blankDistance"] = 0;
+    m["pass"] = 0;
+    m["vsdMode"] = 0;
+    return m;
+}
+
+
+static QVariantMap normalizedDirectPrintSettings(const QVariantMap& in) {
+    QVariantMap out = defaultDirectPrintSettings();
+    for (auto it = in.begin(); it != in.end(); ++it)
+        out[it.key()] = it.value();
+
+    auto clamp = [&](const char* key, int lo, int hi) {
+        const QString k = QString::fromUtf8(key);
+        out[k] = std::max(lo, std::min(hi, out.value(k).toInt()));
+    };
+
+    clamp("selectedPrinterIndex", -1, 99);
+    clamp("printDirection", 0, 3);
+    clamp("printSpeed", 0, 3);
+    clamp("wcSequence", 0, 1);
+    clamp("eclosionGrade", 0, 3);
+    clamp("headSelect", 0, 2);
+    clamp("whiteInkPercent", 0, 9);
+    clamp("whiteInkPassCount", 0, 255);
+    clamp("varnishInkPercent", 0, 9);
+    clamp("varnishInkPassCount", 0, 255);
+    clamp("headVoltage", 400, 600);
+    clamp("disableUv0", 0, 1);
+    clamp("disableUv1", 0, 1);
+    clamp("disableUv2", 0, 1);
+    clamp("disableUv3", 0, 1);
+    clamp("disableUv4", 0, 1);
+    clamp("disableUv5", 0, 1);
+    clamp("carReset", 0, 1);
+    clamp("stripBlank", 0, 2);
+    clamp("blankDistance", 0, 65535);
+    clamp("pass", 0, 255);
+    clamp("vsdMode", 0, 65535);
+    return out;
+}
+
+
 static QVariantMap clampMapU8(const QVariantMap& in) {
     QVariantMap out = in;
 
@@ -228,6 +292,69 @@ void ColorManagementManager::setPrinterOutputProfile(const QString& printerName,
     if (cur == newVal) return;
     m_printerOutputProfiles.insert(key, newVal);
     emit profilesChanged();
+}
+
+
+QString ColorManagementManager::multiInkOutputMode() const {
+    return m_multiInkOutputMode;
+}
+
+
+void ColorManagementManager::setMultiInkOutputMode(const QString& mode) {
+    const QString normalized = (mode.trimmed().toLower() == "direct") ? "direct" : "prn";
+    if (m_multiInkOutputMode == normalized)
+        return;
+
+    m_multiInkOutputMode = normalized;
+    emit directPrintSettingsChanged();
+    save();
+}
+
+
+QString ColorManagementManager::directPrintSdkRootPath() const {
+    return m_directPrintSdkRootPath;
+}
+
+
+void ColorManagementManager::setDirectPrintSdkRootPath(const QString& path) {
+    const QString clean = path.trimmed();
+    if (m_directPrintSdkRootPath == clean)
+        return;
+
+    m_directPrintSdkRootPath = clean;
+    emit directPrintSettingsChanged();
+    save();
+}
+
+
+QVariantMap ColorManagementManager::directPrintSettings() const {
+    return normalizedDirectPrintSettings(m_directPrintSettings);
+}
+
+
+void ColorManagementManager::setDirectPrintSettings(const QVariantMap& settings) {
+    const QVariantMap normalized = normalizedDirectPrintSettings(settings);
+    if (m_directPrintSettings == normalized)
+        return;
+
+    m_directPrintSettings = normalized;
+    emit directPrintSettingsChanged();
+    save();
+}
+
+
+QVariant ColorManagementManager::directPrintSetting(const QString& key) const {
+    return directPrintSettings().value(key);
+}
+
+
+void ColorManagementManager::setDirectPrintSetting(const QString& key, const QVariant& value) {
+    if (key.trimmed().isEmpty())
+        return;
+
+    QVariantMap settings = directPrintSettings();
+    settings[key.trimmed()] = value;
+    setDirectPrintSettings(settings);
 }
 
 
@@ -753,6 +880,14 @@ bool ColorManagementManager::load() {
     setLinearizationPresetName(o.value("linearizationPresetName").toString(m_linearizationPresetName));
     setLinearizationDataPath(o.value("linearizationDataPath").toString(m_linearizationDataPath));
 
+    // Direct print settings
+    m_multiInkOutputMode = (o.value("multiInkOutputMode").toString(m_multiInkOutputMode).trimmed().toLower() == "direct")
+        ? "direct"
+        : "prn";
+    m_directPrintSdkRootPath = o.value("directPrintSdkRootPath").toString(m_directPrintSdkRootPath).trimmed();
+    m_directPrintSettings = normalizedDirectPrintSettings(
+        jsonObjectToVariantMap(o.value("directPrintSettings").toObject()));
+
     // Printer profile map
     m_printerOutputProfiles.clear();
     const auto mapObj = o.value("printerOutputProfiles").toObject();
@@ -808,6 +943,7 @@ bool ColorManagementManager::load() {
     emit linearizationChanged();
     emit dotStrategyChanged();
     emit multiInkParamsChanged();
+    emit directPrintSettingsChanged();
     return true;
 }
 
@@ -835,6 +971,11 @@ bool ColorManagementManager::save() {
     o["enableLinearization"] = m_enableLinearization;
     o["linearizationPresetName"] = m_linearizationPresetName;
     o["linearizationDataPath"] = m_linearizationDataPath;
+
+    // Direct print settings
+    o["multiInkOutputMode"] = m_multiInkOutputMode;
+    o["directPrintSdkRootPath"] = m_directPrintSdkRootPath;
+    o["directPrintSettings"] = variantMapToJsonObject(normalizedDirectPrintSettings(m_directPrintSettings));
     
 	// Family default linearization XML paths
     QJsonObject familyLinObj;
@@ -916,6 +1057,10 @@ void ColorManagementManager::resetToDefaults() {
     m_floorRangeK   = 12;
     m_floorMaxK     = 0;
     m_enableDotSwap = false;
+
+    m_multiInkOutputMode = "prn";
+    m_directPrintSdkRootPath.clear();
+    m_directPrintSettings = defaultDirectPrintSettings();
     
     // Linearization
     m_enableLinearization = true;
@@ -932,4 +1077,5 @@ void ColorManagementManager::resetToDefaults() {
     emit linearizationChanged();
     emit dotStrategyChanged();
     emit multiInkParamsChanged();
+    emit directPrintSettingsChanged();
 }

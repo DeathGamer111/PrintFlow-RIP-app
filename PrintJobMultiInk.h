@@ -21,8 +21,10 @@
 #include "MultiInkToneBuilder.h"
 #include "MultiInkScreenEngine.h"
 #include "MultiInkTypes.h"
+#include "NocaiDirectPrintClient.h"
 
 class ColorManagementManager;
+class NocaiDirectPrintClient;
 
 class PrintJobMultiInk : public QObject
 {
@@ -46,10 +48,12 @@ signals:
 
 public slots:
     Q_INVOKABLE void runPRNGeneration(const QVariantMap& jobMap, const QString& outputPath);
+    Q_INVOKABLE void runDirectPrint(const QVariantMap& jobMap);
 
 public:
     // Manager wiring
     void setColorManager(ColorManagementManager* mgr);
+    void setDirectPrintClient(NocaiDirectPrintClient* client);
 
     // Pipeline entry points
     Q_INVOKABLE bool loadInputImage(const QString& imagePath);
@@ -99,6 +103,16 @@ public:
     Q_INVOKABLE bool isLinearizationEnabled() const;
 
 private:
+    struct RasterPayload {
+        std::vector<std::vector<std::vector<uint8_t>>> packedLines;
+        std::vector<int> channelOrder;
+        int width = 0;
+        int height = 0;
+        int xdpi = 0;
+        int ydpi = 0;
+        int bytesPerLine = 0;
+    };
+
     // Internal helpers
     bool loadMaskRaw(const QString& key,
                      std::vector<uint8_t>& maskRaw,
@@ -116,19 +130,20 @@ private:
     std::array<Magick::Image, 4> separateCMYK(Magick::Image& cmykImage);
     QString maskKeyForChannel(InkMode mode, int channelIndex) const;
 
-    bool writePRNFile(const std::vector<std::vector<std::vector<uint8_t>>>& packedLines,
-                      const std::vector<int>& channelOrder,
-                      int width,
-                      int height,
-                      int xdpi,
-                      int ydpi,
+    bool prepareJobForOutput(const QVariantMap& jobMap, const QString& outputPathForLogging);
+    bool buildRasterPayload(int xdpi, int ydpi, RasterPayload& payload);
+    bool applySpecialtyBlanking(RasterPayload& payload) const;
+    bool writePRNFile(const RasterPayload& payload,
                       const QString& outputPath);
+    bool sendDirectPrint(const RasterPayload& payload, const QVariantMap& jobMap);
+    NocaiDirectPrintSettings directPrintSettingsFromJob(const QVariantMap& jobMap, const RasterPayload& payload) const;
 
 private:
     // Runtime mode/config
     QVariantMap m_modeParams;
     InkMode m_inkMode = InkMode::FourColor_YMCK;
     ColorManagementManager* m_colorManager = nullptr;
+    NocaiDirectPrintClient* m_directPrintClient = nullptr;
 
     // Assets
     AssetManager m_assetManager;

@@ -15,10 +15,15 @@ Page {
     // Tracks which ICC dropdown to update after a file is chosen.
     property string iccDialogTarget: "output" // "output" | "inputCMYK" | "deviceLink"
     property string linearizationDialogTarget: "printerLinearization"
+    property string sdkConnectionState: "Not connected"
+    property string sdkSelectedPrinterName: ""
+    property var sdkPrinterStatusInfo: ({})
+    property var sdkPrinterFirmwareInfo: ({})
 
     // In-memory ICC list for dropdowns; populated from backend and user uploads.
     ListModel { id: iccProfileModel }
     ListModel { id: deviceLinkModel }
+    ListModel { id: sdkPrinterModel }
     
     property bool _syncingTabs: false
 
@@ -65,6 +70,66 @@ Page {
     function normalizePath(urlOrPath) {
         const s = (urlOrPath || "").toString()
         return s.startsWith("file://") ? s.slice(7) : s
+    }
+
+    function isX36MultiInk() {
+        return appState.usingSimulatedPrinter
+               && appState.usingMultiInkPrinter
+               && appState.selectedPrinter === "X-36NC (Photo Printer)"
+    }
+
+    function setDirectSetting(key, value) {
+        colorManager.setDirectPrintSetting(key, value)
+    }
+
+    function refreshSdkPrinters() {
+        sdkPrinterModel.clear()
+        nocaiDirectPrint.sdkRootPath = colorManager.directPrintSdkRootPath
+        const ok = nocaiDirectPrint.refreshPrinters()
+        const printers = nocaiDirectPrint.printers
+        for (let i = 0; i < printers.length; ++i)
+            sdkPrinterModel.append(printers[i])
+
+        syncSdkPrinterCombo()
+        toast.show(ok ? "SDK printer list refreshed." : "SDK unavailable: " + nocaiDirectPrint.lastError)
+    }
+
+    function connectSdkPrinter() {
+        if (appState.sdkSelectedPrinterIndex >= 0)
+            nocaiDirectPrint.choosePrinter(appState.sdkSelectedPrinterIndex)
+
+        const ok = nocaiDirectPrint.connectPrinter()
+        sdkConnectionState = ok ? "Connected" : "Connection failed"
+        toast.show(ok ? "SDK printer connected." : "ConnectPrinter failed: " + nocaiDirectPrint.lastError)
+        if (ok)
+            refreshSdkStatusAndInfo()
+    }
+
+    function refreshSdkStatusAndInfo() {
+        if (appState.sdkSelectedPrinterIndex >= 0)
+            nocaiDirectPrint.choosePrinter(appState.sdkSelectedPrinterIndex)
+
+        const status = nocaiDirectPrint.getPrinterStatus()
+        sdkPrinterStatusInfo = status
+        const info = nocaiDirectPrint.getPrinterInfo()
+        sdkPrinterFirmwareInfo = info
+
+        if (status.ok || info.ok)
+            sdkConnectionState = "Connected"
+        else if (nocaiDirectPrint.lastError && nocaiDirectPrint.lastError.length > 0)
+            sdkConnectionState = "Unavailable"
+    }
+
+    function syncSdkPrinterCombo() {
+        sdkPrinterCombo.currentIndex = -1
+        sdkSelectedPrinterName = ""
+        for (let i = 0; i < sdkPrinterModel.count; ++i) {
+            if (sdkPrinterModel.get(i).index === appState.sdkSelectedPrinterIndex) {
+                sdkPrinterCombo.currentIndex = i
+                sdkSelectedPrinterName = sdkPrinterModel.get(i).name
+                break
+            }
+        }
     }
 
 	function currentOutputProfileInkMode() {
@@ -239,6 +304,9 @@ Page {
 		        deviceLinkModel.clear()
 		    }
 		}
+
+        if (typeof sdkPrinterCombo !== "undefined")
+            syncSdkPrinterCombo()
 	}
 
     function doSave() {
@@ -295,6 +363,7 @@ Page {
             ThemedButton {
                 text: "Back"
                 theme: root.theme
+                Layout.preferredWidth: 88
                 padding: 12
                 font.pixelSize: 15
                 onClicked: root.stackView.pop()
@@ -316,6 +385,7 @@ Page {
             ThemedButton {
                 text: "Save"
                 theme: root.theme
+                Layout.preferredWidth: 88
                 padding: 12
                 font.pixelSize: 15
                 enabled: hasPrinterSelected()
@@ -375,15 +445,15 @@ Page {
                         TabButton { text: "Network Printer" }
 
                         onCurrentIndexChanged: {
-							if (root._syncingTabs) return
+                            if (root._syncingTabs) return
 
-							if (currentIndex === 0) {
-								appState.usingSimulatedPrinter = true
-							} else {
-								appState.usingSimulatedPrinter = false
-								appState.usingMultiInkPrinter = false
-							}
-							Qt.callLater(root.syncUIFromAppState)
+                            if (currentIndex === 0) {
+                                appState.usingSimulatedPrinter = true
+                            } else if (currentIndex === 1) {
+                                appState.usingSimulatedPrinter = false
+                                appState.usingMultiInkPrinter = false
+                            }
+                            Qt.callLater(root.syncUIFromAppState)
                         }
                     }
 
@@ -504,6 +574,267 @@ Page {
 									}
                                 }
                             }
+
+	                            ColumnLayout {
+	                                visible: root.isX36MultiInk()
+	                                Layout.fillWidth: true
+	                                spacing: 10
+
+	                                Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.8 }
+
+	                                Label {
+	                                    text: "Direct Print SDK"
+	                                    color: theme.text
+	                                    font.bold: true
+	                                    Layout.alignment: Qt.AlignHCenter
+	                                }
+
+	                                Label {
+	                                    text: "Output Mode"
+	                                    color: theme.text
+	                                    font.bold: true
+	                                    Layout.alignment: Qt.AlignHCenter
+	                                }
+
+	                                ComboBox {
+	                                    id: directOutputModeCombo
+	                                    Layout.fillWidth: true
+                                    model: ListModel {
+                                        ListElement { label: "PRN Generation"; value: "prn" }
+                                        ListElement { label: "Direct to Print"; value: "direct" }
+                                    }
+                                    textRole: "label"
+                                    currentIndex: appState.multiInkOutputMode === "direct" ? 1 : 0
+
+                                    onActivated: {
+                                        const selected = model.get(currentIndex)
+                                        appState.multiInkOutputMode = selected.value
+                                        colorManager.setMultiInkOutputMode(selected.value)
+                                        toast.show("Output mode set to " + selected.label)
+                                    }
+                                }
+
+                                Label {
+                                    text: appState.multiInkOutputMode === "direct"
+                                          ? "Direct mode streams the MultiInk raster to the Nocai SDK."
+                                          : "PRN mode saves a file for testing and debugging."
+	                                    color: theme.subtext
+	                                    wrapMode: Text.WordWrap
+	                                    Layout.fillWidth: true
+	                                    horizontalAlignment: Text.AlignHCenter
+	                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+	                                    ThemedButton {
+	                                        text: "Refresh SDK Printers"
+	                                        theme: root.theme
+	                                        Layout.fillWidth: true
+	                                        Layout.preferredHeight: 40
+	                                        onClicked: root.refreshSdkPrinters()
+	                                    }
+
+	                                    Label {
+	                                        text: nocaiDirectPrint.available ? "SDK ready" : "SDK unavailable"
+	                                        color: nocaiDirectPrint.available ? theme.accent : theme.warning
+	                                        Layout.alignment: Qt.AlignVCenter
+	                                    }
+	                                }
+
+                                ComboBox {
+                                    id: sdkPrinterCombo
+                                    Layout.fillWidth: true
+                                    model: sdkPrinterModel
+                                    textRole: "name"
+                                    displayText: currentIndex >= 0 ? currentText : "(no SDK printer selected)"
+
+	                                    onActivated: {
+	                                        if (sdkPrinterModel.count <= 0) return
+	                                        const selected = sdkPrinterModel.get(currentIndex)
+	                                        appState.sdkSelectedPrinterIndex = selected.index
+	                                        root.sdkSelectedPrinterName = selected.name
+	                                        root.setDirectSetting("selectedPrinterIndex", selected.index)
+	                                        nocaiDirectPrint.choosePrinter(selected.index)
+	                                    }
+	                                }
+
+	                                RowLayout {
+	                                    Layout.fillWidth: true
+	                                    spacing: 10
+
+	                                    ThemedButton {
+	                                        text: root.sdkConnectionState === "Connected" ? "Connected" : "Connect"
+	                                        theme: root.theme
+	                                        Layout.fillWidth: true
+	                                        Layout.preferredHeight: 40
+	                                        background: Rectangle {
+	                                            radius: 6
+	                                            color: root.sdkConnectionState === "Connected" ? "#1F8A5B" : "#A33A3A"
+	                                            border.width: 1
+	                                            border.color: root.theme.divider
+	                                        }
+	                                        onClicked: root.connectSdkPrinter()
+	                                    }
+
+	                                    ThemedButton {
+	                                        text: "Refresh Status"
+	                                        theme: root.theme
+	                                        Layout.fillWidth: true
+	                                        Layout.preferredHeight: 40
+	                                        onClicked: root.refreshSdkStatusAndInfo()
+	                                    }
+	                                }
+
+	                                Label {
+	                                    Layout.fillWidth: true
+	                                    text: "SDK Printer: " + (root.sdkSelectedPrinterName.length > 0 ? root.sdkSelectedPrinterName : "(none)") +
+	                                              "\nConnection: " + root.sdkConnectionState +
+	                                              "\n" + (nocaiDirectPrint.lastError && nocaiDirectPrint.lastError.length > 0
+	                                                     ? nocaiDirectPrint.lastError
+	                                                     : nocaiDirectPrint.statusText())
+	                                    color: root.sdkConnectionState === "Connected" ? theme.subtext : theme.warning
+	                                    wrapMode: Text.WordWrap
+	                                    horizontalAlignment: Text.AlignHCenter
+	                                }
+
+                                GridLayout {
+                                    Layout.fillWidth: true
+                                    columns: 2
+                                    columnSpacing: 12
+                                    rowSpacing: 8
+
+                                    Label { text: "Print Direction"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 3; value: appState.sdkPrintDirection
+                                        onValueModified: { appState.sdkPrintDirection = value; root.setDirectSetting("printDirection", value) }
+                                    }
+
+                                    Label { text: "Print Speed"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 3; value: appState.sdkPrintSpeed
+                                        onValueModified: { appState.sdkPrintSpeed = value; root.setDirectSetting("printSpeed", value) }
+                                    }
+
+                                    Label { text: "WC Sequence"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 1; value: appState.sdkWcSequence
+                                        onValueModified: { appState.sdkWcSequence = value; root.setDirectSetting("wcSequence", value) }
+                                    }
+
+                                    Label { text: "Eclosion Grade"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 3; value: appState.sdkEclosionGrade
+                                        onValueModified: { appState.sdkEclosionGrade = value; root.setDirectSetting("eclosionGrade", value) }
+                                    }
+
+                                    Label { text: "Head Select"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 2; value: appState.sdkHeadSelect
+                                        onValueModified: { appState.sdkHeadSelect = value; root.setDirectSetting("headSelect", value) }
+                                    }
+
+                                    Label { text: "White Ink Percent"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 9; value: appState.sdkWhiteInkPercent
+                                        onValueModified: { appState.sdkWhiteInkPercent = value; root.setDirectSetting("whiteInkPercent", value) }
+                                    }
+
+                                    Label { text: "White Ink Pass"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 255; value: appState.sdkWhiteInkPassCount
+                                        onValueModified: { appState.sdkWhiteInkPassCount = value; root.setDirectSetting("whiteInkPassCount", value) }
+                                    }
+
+                                    Label { text: "Varnish Ink Percent"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 9; value: appState.sdkVarnishInkPercent
+                                        onValueModified: { appState.sdkVarnishInkPercent = value; root.setDirectSetting("varnishInkPercent", value) }
+                                    }
+
+                                    Label { text: "Varnish Ink Pass"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 255; value: appState.sdkVarnishInkPassCount
+                                        onValueModified: { appState.sdkVarnishInkPassCount = value; root.setDirectSetting("varnishInkPassCount", value) }
+                                    }
+
+                                    Label { text: "Head Voltage"; color: theme.text }
+                                    SpinBox {
+                                        from: 400; to: 600; value: appState.sdkHeadVoltage
+                                        onValueModified: { appState.sdkHeadVoltage = value; root.setDirectSetting("headVoltage", value) }
+                                    }
+
+                                    Label { text: "Car Reset"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 1; value: appState.sdkCarReset
+                                        onValueModified: { appState.sdkCarReset = value; root.setDirectSetting("carReset", value) }
+                                    }
+
+                                    Label { text: "Strip Blank"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 2; value: appState.sdkStripBlank
+                                        onValueModified: { appState.sdkStripBlank = value; root.setDirectSetting("stripBlank", value) }
+                                    }
+
+                                    Label { text: "Blank Distance"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 65535; value: appState.sdkBlankDistance
+                                        onValueModified: { appState.sdkBlankDistance = value; root.setDirectSetting("blankDistance", value) }
+                                    }
+
+                                    Label { text: "Print Pass"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 255; value: appState.sdkPass
+                                        onValueModified: { appState.sdkPass = value; root.setDirectSetting("pass", value) }
+                                    }
+
+                                    Label { text: "VsdMode"; color: theme.text }
+                                    SpinBox {
+                                        from: 0; to: 65535; value: appState.sdkVsdMode
+                                        onValueModified: { appState.sdkVsdMode = value; root.setDirectSetting("vsdMode", value) }
+                                    }
+                                }
+
+	                                Label {
+	                                    text: "Disable UV Lights"
+	                                    color: theme.text
+	                                    font.bold: true
+	                                    Layout.alignment: Qt.AlignHCenter
+	                                }
+
+                                GridLayout {
+                                    Layout.fillWidth: true
+                                    columns: 2
+                                    columnSpacing: 12
+                                    rowSpacing: 6
+
+                                    CheckBox {
+                                        text: "R lamp R->L off"; checked: appState.sdkDisableUv0 === 1
+                                        onToggled: { appState.sdkDisableUv0 = checked ? 1 : 0; root.setDirectSetting("disableUv0", appState.sdkDisableUv0) }
+                                    }
+                                    CheckBox {
+                                        text: "R lamp L->R off"; checked: appState.sdkDisableUv1 === 1
+                                        onToggled: { appState.sdkDisableUv1 = checked ? 1 : 0; root.setDirectSetting("disableUv1", appState.sdkDisableUv1) }
+                                    }
+                                    CheckBox {
+                                        text: "L lamp R->L off"; checked: appState.sdkDisableUv2 === 1
+                                        onToggled: { appState.sdkDisableUv2 = checked ? 1 : 0; root.setDirectSetting("disableUv2", appState.sdkDisableUv2) }
+                                    }
+                                    CheckBox {
+                                        text: "L lamp L->R off"; checked: appState.sdkDisableUv3 === 1
+                                        onToggled: { appState.sdkDisableUv3 = checked ? 1 : 0; root.setDirectSetting("disableUv3", appState.sdkDisableUv3) }
+                                    }
+                                    CheckBox {
+                                        text: "UV lamp R->L off"; checked: appState.sdkDisableUv4 === 1
+                                        onToggled: { appState.sdkDisableUv4 = checked ? 1 : 0; root.setDirectSetting("disableUv4", appState.sdkDisableUv4) }
+                                    }
+                                    CheckBox {
+                                        text: "UV lamp L->R off"; checked: appState.sdkDisableUv5 === 1
+                                        onToggled: { appState.sdkDisableUv5 = checked ? 1 : 0; root.setDirectSetting("disableUv5", appState.sdkDisableUv5) }
+                                    }
+                                }
+                            }
                         }
 
                         // --- Tab 1: Network printers ---
@@ -550,9 +881,10 @@ Page {
                                 onClicked: printJobOutput.refreshDetectedPrinters()
                             }
                         }
-                    }
-                }
-            }
+
+		                    }
+		                }
+		            }
             
             // DeviceLink controls (MultiInk only)
 			Pane {
@@ -932,17 +1264,51 @@ Page {
                                : printJobOutput.supportedColorModes().join(", "))
                     }
 
-                    Label {
-                        visible: appState.usingSimulatedPrinter
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        color: theme.subtext
+	                    Label {
+	                        visible: appState.usingSimulatedPrinter
+	                        Layout.fillWidth: true
+	                        wrapMode: Text.WordWrap
+	                        color: theme.subtext
                         text: appState.usingMultiInkPrinter
-                              ? ("Ink Layout: " + appState.multiInkInkMode + " channels")
-                              : "Ink Layout: CMYK / CMYK+W via Nocai engine"
-                    }
-                }
-            }
+	                              ? ("Ink Layout: " + appState.multiInkInkMode + " channels")
+	                              : "Ink Layout: CMYK / CMYK+W via Nocai engine"
+	                    }
+
+                        Label {
+                            visible: root.isX36MultiInk()
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            color: theme.subtext
+                            text: "SDK Printer: " + (root.sdkSelectedPrinterName.length > 0 ? root.sdkSelectedPrinterName : "(none)")
+                        }
+
+                        Label {
+                            visible: root.isX36MultiInk()
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            color: theme.subtext
+                            text: "SDK Status: print=" +
+                                  (root.sdkPrinterStatusInfo && root.sdkPrinterStatusInfo.ok ? root.sdkPrinterStatusInfo.printStatus : "(unknown)") +
+                                  ", clean=" +
+                                  (root.sdkPrinterStatusInfo && root.sdkPrinterStatusInfo.ok ? root.sdkPrinterStatusInfo.cleanStatus : "(unknown)")
+                        }
+
+                        Label {
+                            visible: root.isX36MultiInk()
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            color: theme.subtext
+                            text: "SDK Firmware: main FPGA " +
+                                  (root.sdkPrinterFirmwareInfo && root.sdkPrinterFirmwareInfo.ok ? root.sdkPrinterFirmwareInfo.mainboardFpga : "(unknown)") +
+                                  ", car FPGA " +
+                                  (root.sdkPrinterFirmwareInfo && root.sdkPrinterFirmwareInfo.ok ? root.sdkPrinterFirmwareInfo.carboardFpga : "(unknown)") +
+                                  ", main CPU " +
+                                  (root.sdkPrinterFirmwareInfo && root.sdkPrinterFirmwareInfo.ok ? root.sdkPrinterFirmwareInfo.mainboardCpu : "(unknown)") +
+                                  ", car CPU " +
+                                  (root.sdkPrinterFirmwareInfo && root.sdkPrinterFirmwareInfo.ok ? root.sdkPrinterFirmwareInfo.carboardCpu : "(unknown)")
+                        }
+	                }
+	            }
 
             Item { height: 6 }
         }
@@ -953,4 +1319,3 @@ Page {
         parent: Overlay.overlay
     }
 }
-

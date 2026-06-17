@@ -91,6 +91,45 @@ Item {
     }
 
 
+    function directPrintSettings() {
+        return {
+            selectedPrinterIndex: appState.sdkSelectedPrinterIndex,
+            printDirection: appState.sdkPrintDirection,
+            printSpeed: appState.sdkPrintSpeed,
+            wcSequence: appState.sdkWcSequence,
+            eclosionGrade: appState.sdkEclosionGrade,
+            headSelect: appState.sdkHeadSelect,
+            whiteInkPercent: appState.sdkWhiteInkPercent,
+            whiteInkPassCount: appState.sdkWhiteInkPassCount,
+            varnishInkPercent: appState.sdkVarnishInkPercent,
+            varnishInkPassCount: appState.sdkVarnishInkPassCount,
+            headVoltage: appState.sdkHeadVoltage,
+            disableUv0: appState.sdkDisableUv0,
+            disableUv1: appState.sdkDisableUv1,
+            disableUv2: appState.sdkDisableUv2,
+            disableUv3: appState.sdkDisableUv3,
+            disableUv4: appState.sdkDisableUv4,
+            disableUv5: appState.sdkDisableUv5,
+            carReset: appState.sdkCarReset,
+            stripBlank: appState.sdkStripBlank,
+            blankDistance: appState.sdkBlankDistance,
+            pass: appState.sdkPass,
+            vsdMode: appState.sdkVsdMode
+        }
+    }
+
+
+    function printSelectedMultiInkDirectly() {
+        const job = jobModel.getJob(selectedIndexes[0])
+        var directJob = Object.assign({}, job)
+        directJob.inkMode = appState.multiInkInkMode
+        directJob.directPrintSettings = directPrintSettings()
+        appState.isGeneratingPRN = true
+        console.log("Routing to Nocai MultiInk direct print backend with inkMode =", appState.multiInkInkMode)
+        printJobMultiInk.runDirectPrint(directJob)
+    }
+
+
 	// Direct print path (bypasses file save): generates and sends to the configured printer.
     function printSelectedJobDirectly() {
         const index = selectedIndexes[0]
@@ -116,11 +155,21 @@ Item {
 		appState.isGeneratingPRN = false
 
 		if (success) {
-			console.log("PRN generated successfully:", outputFileDialog.file)
-			toast.show("PRN generated successfully.")
+            if (appState.usingMultiInkPrinter && appState.multiInkOutputMode === "direct") {
+                console.log("Direct print sent successfully.")
+                toast.show("Sent to printer.")
+            } else {
+                console.log("PRN generated successfully:", outputFileDialog.file)
+                toast.show("PRN generated successfully.")
+            }
 		} else {
-			console.warn("Failed to generate PRN file.")
-			toast.show("Failed to generate PRN file.")
+            if (appState.usingMultiInkPrinter && appState.multiInkOutputMode === "direct") {
+                console.warn("Failed to send direct print job.")
+                toast.show("Failed to send to printer.")
+            } else {
+                console.warn("Failed to generate PRN file.")
+                toast.show("Failed to generate PRN file.")
+            }
 		}
 	}
 
@@ -223,108 +272,136 @@ Item {
 						border.color: theme.divider
 					}
 
-					// Helper to keep menu text readable across dark/light
-					function themedItem(labelText, onTriggerFn) {
-						return null
-					}
-					
+						C.MenuItem {
+							id: miLoad
+							text: "Load Job(s)"
+							hoverEnabled: true
 
-					C.MenuItem {
-						id: miLoad
-						text: "Load Job(s)"
-						hoverEnabled: true
+							background: Rectangle {
+								radius: 8
+								color: miLoad.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+									   : (miLoad.hovered
+											? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+											: "transparent")
+							}
 
-						background: Rectangle {
-							radius: 8
-							color: miLoad.pressed
-								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
-								   : (miLoad.hovered
-										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
-										: "transparent")
+							contentItem: Label { text: miLoad.text; color: root.theme.text; verticalAlignment: Text.AlignVCenter }
+
+							onTriggered: {
+								settingsMenu.close()
+								openFileDialog.open()
+							}
+						}
+
+						C.MenuSeparator { }
+
+						C.MenuItem {
+							id: miPrinter
+							text: "Printer Setup"
+							hoverEnabled: true
+
+							background: Rectangle {
+								radius: 8
+								color: miPrinter.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+									   : (miPrinter.hovered
+											? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+											: "transparent")
+							}
+
+							contentItem: Label { text: miPrinter.text; color: root.theme.text; verticalAlignment: Text.AlignVCenter }
+
+							onTriggered: {
+								settingsMenu.close()
+								stackView.push("qrc:/qml/PrinterSetupView.qml", {
+									stackView: stackView,
+									appState: appState,
+									theme: root.theme
+								})
+							}
 						}
 						
-						contentItem: Label { text: miLoad.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
-						
-						onTriggered: {
-							settingsMenu.close()
-							openFileDialog.open()
+						C.MenuSeparator { }
+
+						C.MenuItem {
+							id: miMaintenance
+							text: "Printer Maintenance"
+							enabled: nocaiDirectPrint.supportsMaintenance(appState.selectedPrinter)
+							hoverEnabled: enabled
+
+							background: Rectangle {
+								radius: 8
+								color: miMaintenance.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+									   : (miMaintenance.hovered
+											? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+											: "transparent")
+							}
+
+							contentItem: Label {
+								text: miMaintenance.text
+								color: miMaintenance.enabled ? root.theme.text : root.theme.subtext
+								opacity: miMaintenance.enabled ? 1.0 : 0.55
+								verticalAlignment: Text.AlignVCenter
+							}
+
+							onTriggered: {
+								settingsMenu.close()
+								stackView.push("qrc:/qml/PrinterMaintenanceView.qml", {
+									stackView: stackView,
+									appState: appState,
+									theme: root.theme
+								})
+							}
 						}
-					}
 
-					C.MenuSeparator { }
+						C.MenuSeparator { }
 
-					C.MenuItem {
-						id: miPrinter
-						text: "Printer Setup"
-						hoverEnabled: true
+						C.MenuItem {
+							id: miColor
+							text: "Color Management"
+							hoverEnabled: true
 
-						background: Rectangle {
-							radius: 8
-							color: miPrinter.pressed
-								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
-								   : (miPrinter.hovered
-										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
-										: "transparent")
+							background: Rectangle {
+								radius: 8
+								color: miColor.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+									   : (miColor.hovered
+											? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+											: "transparent")
+							}
+
+							contentItem: Label { text: miColor.text; color: root.theme.text; verticalAlignment: Text.AlignVCenter }
+
+							onTriggered: {
+								settingsMenu.close()
+								stackView.push("qrc:/qml/ColorManagementView.qml", {
+									stackView: stackView,
+									appState: appState,
+									theme: root.theme
+								})
+							}
 						}
-						
-						contentItem: Label { text: miPrinter.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
-						
-						onTriggered: {
-							settingsMenu.close()
-							stackView.push("qrc:/qml/PrinterSetupView.qml", {
-								stackView: stackView,
-								appState: appState,
-								theme: theme
-							})
+
+						C.MenuSeparator { }
+
+						C.MenuItem {
+							id: miDarkMode
+							text: root.theme.dark ? "Switch to Light Mode" : "Switch to Dark Mode"
+							hoverEnabled: true
+
+							background: Rectangle {
+								radius: 8
+								color: miDarkMode.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+									   : (miDarkMode.hovered
+											? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+											: "transparent")
+							}
+							contentItem: Label { text: miDarkMode.text; color: root.theme.text; verticalAlignment: Text.AlignVCenter }
+							onTriggered: root.theme.dark = !root.theme.dark
 						}
-					}
-					
-					C.MenuSeparator { }
-
-					C.MenuItem {
-						id: miColor
-						text: "Color Management"
-						hoverEnabled: true
-
-						background: Rectangle {
-							radius: 8
-							color: miColor.pressed
-								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
-								   : (miColor.hovered
-										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
-										: "transparent")
-						}
-						
-						contentItem: Label { text: miColor.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
-						
-						onTriggered: {
-							settingsMenu.close()
-							stackView.push("qrc:/qml/ColorManagementView.qml", {
-								stackView: stackView,
-								appState: appState,
-								theme: theme
-							})
-						}
-					}
-
-					C.MenuSeparator { }
-
-					C.MenuItem {
-						id: miDarkMode
-						text: theme.dark ? "Switch to Light Mode" : "Switch to Dark Mode"
-						hoverEnabled: true
-
-						background: Rectangle {
-							radius: 8
-							color: miDarkMode.pressed
-								   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
-								   : (miDarkMode.hovered
-										? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
-										: "transparent")
-						}
-						contentItem: Label { text: miDarkMode.text; color: theme.text; verticalAlignment: Text.AlignVCenter }
-						onTriggered: theme.dark = !theme.dark
-					}
 				}
             }
         }
@@ -468,11 +545,11 @@ Item {
                         } else {
                             stackView.push("qrc:/qml/JobDetailsView.qml", {
                                 jobIndex: index,
-                                stackView: stackView,
-                                appState: appState,
-                                jobModel: jobModel,
-                                theme: theme
-                            })
+	                                stackView: stackView,
+	                                appState: appState,
+	                                jobModel: jobModel,
+	                                theme: root.theme
+	                            })
                         }
                     }
 
@@ -527,9 +604,14 @@ Item {
 						const fullPath = downloads + "/" + jobName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".prn"
 						outputFileDialog.currentFile = fullPath
 
-                        appState.usingSimulatedPrinter
-                            ? outputFileDialog.open()
-                            : printSelectedJobDirectly()
+                        if (appState.usingSimulatedPrinter) {
+                            if (appState.usingMultiInkPrinter && appState.multiInkOutputMode === "direct")
+                                printSelectedMultiInkDirectly()
+                            else
+                                outputFileDialog.open()
+                        } else {
+                            printSelectedJobDirectly()
+                        }
                     }
                 }
             }
@@ -576,6 +658,7 @@ Item {
 
 					// Pass current ink mode into the pipeline
 					multiInkJob.inkMode = appState.multiInkInkMode
+                    multiInkJob.directPrintSettings = directPrintSettings()
 
 					console.log("Routing to Nocai MultiInk backend with inkMode =", appState.multiInkInkMode)
 					printJobMultiInk.runPRNGeneration(multiInkJob, outputPath)
@@ -630,29 +713,31 @@ Item {
 				height: 64
 				anchors.horizontalCenter: parent.horizontalCenter
 				anchors.verticalCenter: parent.verticalCenter
+                transformOrigin: Item.Center
 
 				RotationAnimator on rotation {
 					from: 0
 					to: 360
 					duration: 1000
 					loops: Animation.Infinite
-					running: true
+					running: spinnerOverlay.visible
 				}
 
 				Rectangle {
 					anchors.fill: parent
 					radius: width / 2
 					border.width: 6
-					border.color: theme.accent
+					border.color: "#402DD4BF"
 					color: "transparent"
 				}
 
 				Rectangle {
 					width: 6
-					height: height / 2
+					height: parent.height / 2
 					anchors.top: parent.top
 					anchors.horizontalCenter: parent.horizontalCenter
 					color: theme.accent
+                    radius: width / 2
 				}
 			}
 
