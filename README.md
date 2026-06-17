@@ -43,32 +43,32 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 
 ```text
 .
-|-- AssetManager.*                 Runtime asset extraction/copy helpers
-|-- ColorManagementManager.*       Persisted color, profile, dot, and linearization settings
-|-- ColorProfile.*                 ICC conversion support
-|-- ImageEditor.*                  QML-facing image editing operations
-|-- ImageLoader.*                  File validation, metadata, and preview helpers
-|-- MultiInk*.{h,cpp}              Multi-ink tone building, screening, and linearization
-|-- PrintJob*.{h,cpp}              Job model, CUPS output, Nocai output, and multi-ink output
-|-- assets/                        Bundled ICC profiles, linearization XML, and logo
+|-- android/                       Qt Android package template
 |-- docs/                          Flowchart and software design document
-|-- qml/                           Qt Quick user interface
-`-- scripts/                       Packaging and ImageMagick policy helper scripts
+|-- resources/assets/              Bundled ICC profiles, linearization XML, and logo
+|-- resources/qml/                 Qt Quick user interface
+|-- scripts/                       Linux, Android, packaging, and policy helper scripts
+|-- src/app/                       Application bootstrap
+|-- src/core/                      Shared models, settings, assets, and capabilities
+|-- src/platform/android/          Android-safe platform facades for APK boot
+|-- src/platform/desktop/          Linux desktop integrations such as CUPS
+|-- src/rip/                       Native RIP, color, screening, and PRN pipeline
+`-- src/vendor/nocai/              Shared Nocai direct-print SDK loader/client
 ```
 
 Important QML views include:
 
-- `qml/Main.qml`
-- `qml/JobListView.qml`
-- `qml/JobDetailsView.qml`
-- `qml/ImageEditorView.qml`
-- `qml/ImpositionView.qml`
-- `qml/PrinterSetupView.qml`
-- `qml/ColorManagementView.qml`
+- `resources/qml/Main.qml`
+- `resources/qml/JobListView.qml`
+- `resources/qml/JobDetailsView.qml`
+- `resources/qml/ImageEditorView.qml`
+- `resources/qml/ImpositionView.qml`
+- `resources/qml/PrinterSetupView.qml`
+- `resources/qml/ColorManagementView.qml`
 
 ## Assets
 
-Small runtime assets are tracked in `assets/`, including:
+Small runtime assets are tracked in `resources/assets/`, including:
 
 - Output ICC profiles for 4-color, 8-color, 1440 plain default, 1440 plain neutral, and generic CMYK workflows.
 - `sRGBProfile.icm`
@@ -78,10 +78,10 @@ Small runtime assets are tracked in `assets/`, including:
 Large blue-noise mask directories are intentionally ignored by Git:
 
 ```text
-assets/blue_noise_mask_*/**
+resources/assets/blue_noise_mask_*/**
 ```
 
-For local builds that generate multi-ink output, the app expects the `assets/blue_noise_mask_512_12000/` directory to exist locally with the mask TIFF files used by `Dev_Build_App.sh`.
+For local builds that generate multi-ink output, the app expects the `resources/assets/blue_noise_mask_512_12000/` directory to exist locally with the mask TIFF files used by `scripts/dev_build_linux.sh`. The masks can be embedded into Qt resources with `-DRIP_EMBED_BLUE_NOISE_MASKS=ON`, but the default leaves them as local runtime assets to avoid very large generated resource objects.
 
 ## Requirements
 
@@ -100,7 +100,7 @@ On Debian/Ubuntu-style systems, use the main development script when you want th
 ./Dev_Build_App.sh
 ```
 
-The script uses `sudo apt-get`, relaxes ImageMagick policy limits through `scripts/Relax_ImageMagick_Limits.sh`, clears the local app cache/build folder, runs CMake, builds the app, and copies blue-noise masks into:
+The root script delegates to `scripts/dev_build_linux.sh`. It uses `sudo apt-get`, relaxes ImageMagick policy limits through `scripts/Relax_ImageMagick_Limits.sh`, clears the local app cache/build folder, runs CMake, builds the app, and copies blue-noise masks into:
 
 ```text
 ~/.local/share/appRIPPrinterApp/runtime_assets/
@@ -121,13 +121,40 @@ Run the app with:
 ./build/appRIPPrinterApp
 ```
 
+## Android Build
+
+The first Android milestone is an APK that builds, installs, and boots in an emulator. Android builds default to boot-safe facades for CUPS and the native RIP pipeline. The shared Nocai direct-print SDK client is still compiled on Android and will package `libSYPrintAPIforPROII.so` when `DIRECT_PRINT_SDK_ROOT` points at a local ignored SDK folder containing that library.
+
+Required environment variables:
+
+```bash
+export QT_ANDROID_CMAKE="$HOME/Qt/<version>/android_arm64_v8a/bin/qt-cmake"
+export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/<version>"
+export DIRECT_PRINT_SDK_ROOT="$PWD/DemoForARM64Linux-260612/Demo260612"
+```
+
+Build the APK:
+
+```bash
+scripts/dev_build_android.sh
+```
+
+Run it on an emulator:
+
+```bash
+AVD_NAME=<your-avd-name> scripts/run_android_emulator.sh
+```
+
 ## Development Notes
 
 - `build/` is ignored and should not be committed.
 - The generated Qt resource output under `.rcc/` is ignored.
 - The blue-noise mask source directory is ignored because the masks are large local runtime assets.
 - The tracked ICC and XML assets are required by the color-management and multi-ink paths.
-- `scripts/Dev_Build_App.sh` has been superseded by the root-level `Dev_Build_App.sh`.
+- `Dev_Build_App.sh` is a compatibility wrapper around `scripts/dev_build_linux.sh`.
+- `scripts/dev_build_android.sh` validates the Android toolchain and builds the APK target.
+- `scripts/run_android_emulator.sh` installs and launches the latest built APK.
 
 ## Verification
 

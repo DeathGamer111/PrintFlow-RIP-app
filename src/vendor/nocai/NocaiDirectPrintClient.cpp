@@ -832,6 +832,10 @@ QStringList NocaiDirectPrintClient::sdkRootCandidates() const
 {
     QStringList roots;
     roots << m_sdkRootPath;
+    roots << QCoreApplication::applicationDirPath();
+#if defined(Q_OS_ANDROID)
+    roots << QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("lib");
+#endif
     roots << QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("DemoForARM64Linux-260612/Demo260612");
     roots << QDir::current().absoluteFilePath("DemoForARM64Linux-260612/Demo260612");
     return roots;

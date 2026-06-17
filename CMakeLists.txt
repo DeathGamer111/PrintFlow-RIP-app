@@ -2,93 +2,103 @@ cmake_minimum_required(VERSION 3.16)
 
 project(RIPPrinterApp VERSION 0.1 LANGUAGES CXX)
 
-# QT Setup
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+option(RIP_ANDROID_ENABLE_RIP_PROCESSING "Build Android with the native RIP dependency stack instead of boot-safe stubs." OFF)
+option(RIP_EMBED_BLUE_NOISE_MASKS "Embed local blue-noise TIFF masks into the Qt resource bundle." OFF)
+
 find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Widgets QuickControls2 Xml)
 
-# qt_standard_project_setup(REQUIRES 6.8)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# ImageMagick Setup
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(ImageMagick REQUIRED IMPORTED_TARGET Magick++)
+set(RIP_CORE_SOURCES
+    src/app/main.cpp
+    src/core/AssetManager.h src/core/AssetManager.cpp
+    src/core/ColorManagementManager.h src/core/ColorManagementManager.cpp
+    src/core/PlatformCapabilities.h src/core/PlatformCapabilities.cpp
+    src/core/PrintJob.h
+    src/core/PrintJobModel.h src/core/PrintJobModel.cpp
+    src/vendor/nocai/NocaiDirectPrintClient.h src/vendor/nocai/NocaiDirectPrintClient.cpp
+)
 
-# Little CMS Setup
-pkg_check_modules(LCMS REQUIRED IMPORTED_TARGET lcms2)
+set(RIP_NATIVE_SOURCES
+    src/rip/ColorProfile.h src/rip/ColorProfile.cpp
+    src/rip/ImageEditor.h src/rip/ImageEditor.cpp
+    src/rip/ImageLoader.h src/rip/ImageLoader.cpp
+    src/rip/MultiInkLinearization.h src/rip/MultiInkLinearization.cpp
+    src/rip/MultiInkScreenEngine.h src/rip/MultiInkScreenEngine.cpp
+    src/rip/MultiInkToneBuilder.h src/rip/MultiInkToneBuilder.cpp
+    src/rip/MultiInkTypes.h
+    src/rip/PrintJobMultiInk.h src/rip/PrintJobMultiInk.cpp
+    src/rip/PrintJobNocai.h src/rip/PrintJobNocai.cpp
+)
 
-# Executable sources
+set(RIP_ANDROID_STUB_SOURCES
+    src/platform/android/ColorProfile.h src/platform/android/ColorProfile.cpp
+    src/platform/android/ImageEditor.h src/platform/android/ImageEditor.cpp
+    src/platform/android/ImageLoader.h src/platform/android/ImageLoader.cpp
+    src/platform/android/PrintJobMultiInk.h src/platform/android/PrintJobMultiInk.cpp
+    src/platform/android/PrintJobNocai.h src/platform/android/PrintJobNocai.cpp
+)
+
+if(ANDROID AND NOT RIP_ANDROID_ENABLE_RIP_PROCESSING)
+    set(RIP_PROCESSING_SOURCES ${RIP_ANDROID_STUB_SOURCES})
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(ImageMagick REQUIRED IMPORTED_TARGET Magick++)
+    pkg_check_modules(LCMS REQUIRED IMPORTED_TARGET lcms2)
+    set(RIP_PROCESSING_SOURCES ${RIP_NATIVE_SOURCES})
+endif()
+
+if(ANDROID)
+    set(RIP_PLATFORM_SOURCES
+        src/platform/android/PrintJobOutput.h src/platform/android/PrintJobOutput.cpp
+    )
+else()
+    set(RIP_PLATFORM_SOURCES
+        src/platform/desktop/PrintJobOutput.h src/platform/desktop/PrintJobOutput.cpp
+    )
+endif()
+
 qt_add_executable(appRIPPrinterApp
-    main.cpp
-    PrintJobModel.h PrintJobModel.cpp
-    PrintJobOutput.h PrintJobOutput.cpp
-    PrintJobNocai.h PrintJobNocai.cpp
-    PrintJobMultiInk.h PrintJobMultiInk.cpp
-    NocaiDirectPrintClient.h NocaiDirectPrintClient.cpp
-    ImageLoader.h ImageLoader.cpp
-    ImageEditor.h ImageEditor.cpp
-    ColorProfile.h ColorProfile.cpp
-    ColorManagementManager.h ColorManagementManager.cpp
-    AssetManager.h AssetManager.cpp
-   	MultiInkTypes.h
-    MultiInkToneBuilder.h MultiInkToneBuilder.cpp
-    MultiInkScreenEngine.h MultiInkScreenEngine.cpp
-    MultiInkLinearization.h MultiInkLinearization.cpp
+    ${RIP_CORE_SOURCES}
+    ${RIP_PROCESSING_SOURCES}
+    ${RIP_PLATFORM_SOURCES}
     stb_image.h
 )
 
-# Target C++ sources
-target_sources(appRIPPrinterApp PRIVATE
-    PrintJobModel.h
-    PrintJob.h
-    ImageLoader.h
-    ImageEditor.h
-    PrintJobOutput.h
-    PrintJobNocai.h
-    PrintJobMultiInk.h
-    NocaiDirectPrintClient.h
-    ColorProfile.h
-    ColorManagementManager.h
-    AssetManager.h
-	MultiInkTypes.h
-    MultiInkToneBuilder.h
-    MultiInkScreenEngine.h
-    MultiInkLinearization.h
+target_include_directories(appRIPPrinterApp PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    src/app
+    src/core
+    src/vendor/nocai
 )
 
-# Mark this as the default QML resource prefix
-set_target_properties(appRIPPrinterApp PROPERTIES QT_RESOURCE_PREFIX "/")
+if(ANDROID AND NOT RIP_ANDROID_ENABLE_RIP_PROCESSING)
+    target_include_directories(appRIPPrinterApp PRIVATE src/platform/android)
+else()
+    target_include_directories(appRIPPrinterApp PRIVATE src/rip)
+endif()
 
-qt_add_resources(appRIPPrinterApp
-    PREFIX "/"
-    FILES
-        qml/Main.qml
-        qml/JobListView.qml
-        qml/JobDetailsView.qml
-        qml/ImageEditorView.qml
-        qml/ImpositionView.qml
-        qml/PrinterSetupView.qml
-        qml/PrinterMaintenanceView.qml
-        qml/DraggableItem.qml
-        qml/ColorManagementView.qml
-        qml/Toast.qml
-      	qml/Theme.qml
-      	qml/ThemedButton.qml
-        assets/logo.png
-        assets/RIP_App_1440_Plain_Default.icc
-        assets/RIP_App_1440_Plain_Neutral.icc
-        assets/RIP_App_1200_8C.icc
-        assets/RIP_App_1200_4C.icc
-        assets/RIP_App_Linearization_1200_4C.xml
-        assets/RIP_App_Linearization_1200_8C.xml
-        assets/RIP_App_Generic_CMYK.icc
-        assets/sRGBProfile.icm
+if(ANDROID)
+    target_include_directories(appRIPPrinterApp PRIVATE src/platform/android)
+else()
+    target_include_directories(appRIPPrinterApp PRIVATE src/platform/desktop)
+endif()
+
+target_link_libraries(appRIPPrinterApp
+    PRIVATE
+        Qt6::Quick
+        Qt6::Concurrent
+        Qt6::QuickControls2
+        Qt6::Widgets
+        Qt6::Xml
 )
 
-
-# Platform-specific CUPS linking
-if(UNIX AND NOT APPLE)  # Linux, Android
+if(NOT ANDROID)
     find_path(CUPS_INCLUDE_DIR cups/cups.h PATH_SUFFIXES cups)
     find_library(CUPS_LIBRARY NAMES cups)
 
@@ -101,30 +111,85 @@ if(UNIX AND NOT APPLE)  # Linux, Android
     endif()
 endif()
 
+if(NOT ANDROID OR RIP_ANDROID_ENABLE_RIP_PROCESSING)
+    target_link_libraries(appRIPPrinterApp
+        PRIVATE
+            PkgConfig::ImageMagick
+            PkgConfig::LCMS
+    )
+endif()
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
+if(ANDROID AND RIP_ANDROID_ENABLE_RIP_PROCESSING)
+    target_compile_definitions(appRIPPrinterApp PRIVATE RIP_ANDROID_ENABLE_RIP_PROCESSING=1)
+endif()
+
+set(DIRECT_PRINT_SDK_ROOT "$ENV{DIRECT_PRINT_SDK_ROOT}" CACHE PATH "Local vendor direct-print SDK root. This path is intentionally not committed.")
+if(NOT DIRECT_PRINT_SDK_ROOT)
+    set(DIRECT_PRINT_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/DemoForARM64Linux-260612/Demo260612")
+endif()
+
+if(ANDROID)
+    set(DIRECT_PRINT_SDK_LIBRARY "${DIRECT_PRINT_SDK_ROOT}/libSYPrintAPIforPROII.so")
+    if(EXISTS "${DIRECT_PRINT_SDK_LIBRARY}")
+        message(STATUS "Android direct-print SDK library: ${DIRECT_PRINT_SDK_LIBRARY}")
+        set_property(TARGET appRIPPrinterApp APPEND PROPERTY QT_ANDROID_EXTRA_LIBS "${DIRECT_PRINT_SDK_LIBRARY}")
+    else()
+        message(WARNING "Android direct-print SDK library not found at ${DIRECT_PRINT_SDK_LIBRARY}. The APK can still boot, but direct print will report unavailable.")
+    endif()
+
+    set_target_properties(appRIPPrinterApp PROPERTIES
+        QT_ANDROID_APP_NAME "RIP App"
+        QT_ANDROID_PACKAGE_NAME "com.ripapp.printer"
+        QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
+        QT_ANDROID_VERSION_CODE 1
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+    )
+endif()
+
+file(GLOB RIP_QML_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/qml/*.qml"
+)
+
+set(RIP_ASSET_FILES
+    resources/assets/logo.png
+    resources/assets/RIP_App_1440_Plain_Default.icc
+    resources/assets/RIP_App_1440_Plain_Neutral.icc
+    resources/assets/RIP_App_1200_8C.icc
+    resources/assets/RIP_App_1200_4C.icc
+    resources/assets/RIP_App_Linearization_1200_4C.xml
+    resources/assets/RIP_App_Linearization_1200_8C.xml
+    resources/assets/RIP_App_Generic_CMYK.icc
+    resources/assets/sRGBProfile.icm
+)
+
+if(RIP_EMBED_BLUE_NOISE_MASKS)
+    file(GLOB RIP_BLUE_NOISE_MASKS CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/assets/blue_noise_mask_512_12000/*.tiff"
+    )
+
+    if(RIP_BLUE_NOISE_MASKS)
+        list(APPEND RIP_ASSET_FILES ${RIP_BLUE_NOISE_MASKS})
+    else()
+        message(WARNING "Blue-noise mask TIFFs were not found under resources/assets/blue_noise_mask_512_12000.")
+    endif()
+else()
+    message(STATUS "Blue-noise mask resource embedding is disabled. Set RIP_EMBED_BLUE_NOISE_MASKS=ON to package local masks into the Qt resource bundle.")
+endif()
+
+qt_add_resources(appRIPPrinterApp "app_resources"
+    PREFIX "/"
+    BASE "resources"
+    FILES
+        ${RIP_QML_FILES}
+        ${RIP_ASSET_FILES}
+)
+
 set_target_properties(appRIPPrinterApp PROPERTIES
-#    MACOSX_BUNDLE_GUI_IDENTIFIER com.example.appRIP-Printer-App
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
 )
-
-
-target_link_libraries(appRIPPrinterApp
-    PRIVATE Qt6::Quick
-    PRIVATE Qt6::Concurrent
-	PRIVATE Qt6::QuickControls2
-    PRIVATE Qt6::Widgets
-    PRIVATE Qt6::Xml
-    PRIVATE cups
-    PRIVATE PkgConfig::ImageMagick
-    PRIVATE PkgConfig::LCMS
-)
-
 
 include(GNUInstallDirs)
 install(TARGETS appRIPPrinterApp

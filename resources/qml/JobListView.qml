@@ -120,6 +120,11 @@ Item {
 
 
     function printSelectedMultiInkDirectly() {
+        if (!appState.supportsDirectPrint || !appState.supportsRipProcessing) {
+            toast.show("Direct print is not available on this platform yet.")
+            return
+        }
+
         const job = jobModel.getJob(selectedIndexes[0])
         var directJob = Object.assign({}, job)
         directJob.inkMode = appState.multiInkInkMode
@@ -132,6 +137,11 @@ Item {
 
 	// Direct print path (bypasses file save): generates and sends to the configured printer.
     function printSelectedJobDirectly() {
+        if (!appState.supportsCupsPrinting) {
+            toast.show("CUPS printing is not available on this platform.")
+            return
+        }
+
         const index = selectedIndexes[0]
         const job = jobModel.getJob(index)
         const inputFile = job.imagePath
@@ -653,6 +663,12 @@ Item {
                 appState.isGeneratingPRN = true
 				
 				if (appState.usingMultiInkPrinter == true) {
+                    if (!appState.supportsRipProcessing) {
+                        toast.show("PRN generation is not available on this platform yet.")
+                        appState.isGeneratingPRN = false
+                        return
+                    }
+
 				    // Clone the job map so we can inject MultiInk-specific fields
 					var multiInkJob = Object.assign({}, job)
 
@@ -664,6 +680,12 @@ Item {
 					printJobMultiInk.runPRNGeneration(multiInkJob, outputPath)
 				}
 				else {
+                    if (!appState.supportsRipProcessing) {
+                        toast.show("PRN generation is not available on this platform yet.")
+                        appState.isGeneratingPRN = false
+                        return
+                    }
+
 					console.log("Routing to standard Nocai backend")
 			        printJobNocai.runPRNGeneration(job, outputPath)
 				}

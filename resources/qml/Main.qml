@@ -30,6 +30,10 @@ ApplicationWindow {
         property bool usingSimulatedPrinter: true					// When true, use mock device behavior.
 		property bool usingMultiInkPrinter: true					// When true, use the PrintJobMultiInk backend.
 		property int multiInkInkMode: 10							// 4,5,6,7,8,10 – current ink layout.
+        property string platformName: platformCapabilities.platformName
+        property bool supportsCupsPrinting: platformCapabilities.supportsCupsPrinting
+        property bool supportsRipProcessing: platformCapabilities.supportsRipProcessing
+        property bool supportsDirectPrint: platformCapabilities.supportsDirectPrint
         property string multiInkOutputMode: colorManager.multiInkOutputMode
         property int sdkSelectedPrinterIndex: colorManager.directPrintSetting("selectedPrinterIndex")
         property int sdkPrintDirection: colorManager.directPrintSetting("printDirection")

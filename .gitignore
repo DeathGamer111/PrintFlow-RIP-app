@@ -83,6 +83,7 @@ CMakeLists.txt.user*
 
 # Large Files in Assets
 assets/blue_noise_mask_*/**
+resources/assets/blue_noise_mask_*/**
 
 # Local vendor SDK drops
 DemoForARM64Linux-*/

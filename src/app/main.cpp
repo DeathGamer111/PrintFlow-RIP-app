@@ -15,6 +15,7 @@
 #include "ImageEditor.h"
 #include "ColorProfile.h"
 #include "ColorManagementManager.h"
+#include "PlatformCapabilities.h"
 
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -49,6 +50,7 @@ int main(int argc, char *argv[]) {
     PrintJobMultiInk printJobMultiInk;
     ColorProfile colorProfile;
     ColorManagementManager colorManager;
+    PlatformCapabilities platformCapabilities;
 
     // Expose C++ objects to QML (context properties for convenient access).
     engine.rootContext()->setContextProperty("jobModel", &jobModel);
@@ -60,6 +62,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("printJobMultiInk", &printJobMultiInk);
     engine.rootContext()->setContextProperty("colorProfile", &colorProfile);
     engine.rootContext()->setContextProperty("colorManager", &colorManager);
+    engine.rootContext()->setContextProperty("platformCapabilities", &platformCapabilities);
     
     // load persisted settings early
     colorManager.load();

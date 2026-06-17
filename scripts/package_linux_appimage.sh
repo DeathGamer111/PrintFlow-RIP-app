@@ -50,21 +50,21 @@ mkdir -p "${APPDIR}/usr/bin" \
 cp "${BUILD_DIR}/appRIPPrinterApp" "${APPDIR}/usr/bin/"
 cp rip-app.desktop "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
 
-if [[ -f "assets/logo.png" ]]; then
-    cp assets/logo.png "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"
-    cp assets/logo.png "${APPDIR}/icon.png"
+if [[ -f "resources/assets/logo.png" ]]; then
+    cp resources/assets/logo.png "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"
+    cp resources/assets/logo.png "${APPDIR}/icon.png"
 else
-    echo "⚠️  logo.png not found in assets/"
-    cp assets/logo.png "${APPDIR}/icon.png" || true
+    echo "logo.png not found in resources/assets/"
 fi
 
 echo "📦 Copying blue noise masks into AppDir..."
 
-mkdir -p "${APPDIR}/usr/share/${APP_NAME}/assets/blue_noise_mask_256"
-cp -r assets/blue_noise_mask_256/* "${APPDIR}/usr/share/${APP_NAME}/assets/blue_noise_mask_256/"
-
-mkdir -p "${APPDIR}/usr/share/${APP_NAME}/assets/blue_noise_mask_512"
-cp -r assets/blue_noise_mask_512/* "${APPDIR}/usr/share/${APP_NAME}/assets/blue_noise_mask_512/"
+if [[ -d "resources/assets/blue_noise_mask_512_12000" ]]; then
+    mkdir -p "${APPDIR}/usr/share/${APP_NAME}/assets/blue_noise_mask_512_12000"
+    cp -r resources/assets/blue_noise_mask_512_12000/* "${APPDIR}/usr/share/${APP_NAME}/assets/blue_noise_mask_512_12000/"
+else
+    echo "No local blue-noise mask directory found; skipping AppDir mask copy."
+fi
 
 
 QML_IMPORT_ARG=""
@@ -76,7 +76,7 @@ echo "🚀 Running linuxdeployqt..."
 ./${LINUXDEPLOYQT} \
   "${APPDIR}/usr/share/applications/${APP_NAME}.desktop" \
   -qmake="$(command -v qmake6)" \
-  -qmldir="$(pwd)/qml" \
+  -qmldir="$(pwd)/resources/qml" \
   ${QML_IMPORT_ARG} \
   -appimage \
   -bundle-non-qt-libs \
@@ -90,4 +90,3 @@ echo "🧹 Removing old runtime asset cache..."
 rm -rf "$HOME/.local/share/${APP_NAME}" || true
 
 echo "✅ Done! AppImage available at ${OUTPUT_DIR}/"
-

@@ -1592,7 +1592,7 @@ bool PrintJobMultiInk::prepareAssets()
 
     qDebug() << "PrintJobMultiInk::prepareAssets: base path =" << m_assetManager.rootPath();
 
-    const QStringList resourcePaths = {
+    const QStringList bundledResourcePaths = {
         // Input / utility profiles
         ":/assets/sRGBProfile.icm",
         ":/assets/RIP_App_Generic_CMYK.icc",
@@ -1603,22 +1603,10 @@ bool PrintJobMultiInk::prepareAssets()
 
         // Linearization XMLs (bundled for convenience; still selected via ColorManager)
         ":/assets/RIP_App_Linearization_1200_4C.xml",
-        ":/assets/RIP_App_Linearization_1200_8C.xml",
-
-        // Blue noise masks
-        ":/assets/blue_noise_mask_512_12000/mask_c.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_m.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_y.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_k.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_lc.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_lm.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_lk.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_llk.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_w.tiff",
-        ":/assets/blue_noise_mask_512_12000/mask_v.tiff"
+        ":/assets/RIP_App_Linearization_1200_8C.xml"
     };
 
-    const QStringList fileNames = {
+    const QStringList bundledFileNames = {
         "sRGBProfile.icm",
         "RIP_App_Generic_CMYK.icc",
 
@@ -1626,23 +1614,28 @@ bool PrintJobMultiInk::prepareAssets()
         "RIP_App_1200_8C.icc",
 
         "RIP_App_Linearization_1200_4C.xml",
-        "RIP_App_Linearization_1200_8C.xml",
-
-        "mask_512_c.tiff",
-        "mask_512_m.tiff",
-        "mask_512_y.tiff",
-        "mask_512_k.tiff",
-        "mask_512_lc.tiff",
-        "mask_512_lm.tiff",
-        "mask_512_lk.tiff",
-        "mask_512_llk.tiff",
-        "mask_512_w.tiff",
-        "mask_512_v.tiff"
+        "RIP_App_Linearization_1200_8C.xml"
     };
 
-    if (!m_assetManager.copyResourcesIfMissing(resourcePaths, fileNames)) {
-        qWarning() << "PrintJobMultiInk: failed to copy one or more runtime assets.";
+    if (!m_assetManager.copyResourcesIfMissing(bundledResourcePaths, bundledFileNames)) {
+        qWarning() << "PrintJobMultiInk: failed to copy one or more bundled runtime assets.";
         return false;
+    }
+
+    const QStringList maskKeys = {
+        "c", "m", "y", "k", "lc", "lm", "lk", "llk", "w", "v"
+    };
+
+    for (const QString& key : maskKeys) {
+        const QString resourcePath = QString(":/assets/blue_noise_mask_512_12000/mask_%1.tiff").arg(key);
+        const QString fileName = QString("mask_512_%1.tiff").arg(key);
+        if (m_assetManager.hasAsset(fileName))
+            continue;
+        if (QFile::exists(resourcePath)) {
+            (void)m_assetManager.copyResourceIfMissing(resourcePath, fileName);
+        } else {
+            qWarning() << "PrintJobMultiInk: mask is not bundled and is missing from runtime assets:" << fileName;
+        }
     }
 
     auto addProfile = [&](const QString& name, const QString& fileName) {
