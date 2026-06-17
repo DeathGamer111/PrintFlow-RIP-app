@@ -709,12 +709,6 @@ void PrintJobCMYK::prepareAssets() {
 }
 
 
-void PrintJobCMYK::prepareNocaiAssets()
-{
-    prepareAssets();
-}
-
-
 // Remove intermediate files for a given job (and optionally its working directory).
 void PrintJobCMYK::cleanupTemporaryFiles(const QString& baseName, const QString& workingDir) {
     qDebug() << "Cleaning intermediate files for base:" << baseName << "in dir:" << workingDir;

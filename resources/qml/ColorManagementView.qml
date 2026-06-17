@@ -76,7 +76,7 @@ Page {
 
     function activeBackend() {
         if (!hasPrinterSelected()) return null
-        return isMultiInkPrinterName(appState.selectedPrinter) ? printJobMultiInk : printJobNocai
+        return isMultiInkPrinterName(appState.selectedPrinter) ? printJobMultiInk : printJobCMYK
     }
 
     function normalizePath(urlOrPath) {
@@ -179,7 +179,7 @@ Page {
         if (isMultiInkPrinterName(appState.selectedPrinter)) {
             printJobMultiInk.prepareAssets()
         } else {
-            printJobNocai.prepareNocaiAssets()
+            printJobCMYK.prepareAssets()
         }
 
         const backend = activeBackend()

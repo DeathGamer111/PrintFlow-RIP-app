@@ -61,7 +61,6 @@ public:
     
     // Internal Assets Handling for Blue Noise Mask and ICC Profiles
     Q_INVOKABLE void prepareAssets();																// Extract/copy assets to temp.
-    Q_INVOKABLE void prepareNocaiAssets();															// Compatibility wrapper for existing QML.
     Q_INVOKABLE void cleanupTemporaryFiles(const QString& baseName, const QString& workingDir);		// Remove temp by base.
     Q_INVOKABLE void cleanupRuntimeAssets();														// Tear down temp dir, etc.
     

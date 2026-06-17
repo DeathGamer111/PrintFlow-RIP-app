@@ -64,7 +64,7 @@ Page {
 
     function activeBackend() {
         if (!hasPrinterSelected()) return null
-        return appState.usingMultiInkPrinter ? printJobMultiInk : printJobNocai
+        return appState.usingMultiInkPrinter ? printJobMultiInk : printJobCMYK
     }
 
     function normalizePath(urlOrPath) {
@@ -194,8 +194,8 @@ Page {
 		        backend = printJobMultiInk
 		        printJobMultiInk.prepareAssets()
 		    } else {
-		        backend = printJobNocai
-		        printJobNocai.prepareNocaiAssets()
+		        backend = printJobCMYK
+		        printJobCMYK.prepareAssets()
 		    }
 
 		    // Rebuild ICC list from backend
@@ -515,8 +515,8 @@ Page {
 										backend = printJobMultiInk
 										printJobMultiInk.prepareAssets()
 									} else {
-										backend = printJobNocai
-										printJobNocai.prepareNocaiAssets()
+										backend = printJobCMYK
+										printJobCMYK.prepareAssets()
 									}
 
 									iccProfileModel.clear()

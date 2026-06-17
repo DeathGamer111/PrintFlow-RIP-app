@@ -687,14 +687,14 @@ Item {
                     }
 
 					console.log("Routing to standard Nocai backend")
-			        printJobNocai.runPRNGeneration(job, outputPath)
+			        printJobCMYK.runPRNGeneration(job, outputPath)
 				}
             }
         }
 
 		// Connect to PRN completion signal to update UI and notify user.
 		Connections {
-			target: printJobNocai
+			target: printJobCMYK
 
 			function onPrnGenerationFinished(success) {
 				root.handlePrnFinished(success)

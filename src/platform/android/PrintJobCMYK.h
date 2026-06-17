@@ -27,7 +27,6 @@ public:
     Q_INVOKABLE bool generateFinalPRN(const QString& outputPath, int xdpi, int ydpi);
 
     Q_INVOKABLE void prepareAssets();
-    Q_INVOKABLE void prepareNocaiAssets();
     Q_INVOKABLE void cleanupTemporaryFiles(const QString& baseName, const QString& workingDir);
     Q_INVOKABLE void cleanupRuntimeAssets();
 

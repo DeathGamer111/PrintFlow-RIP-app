@@ -48,11 +48,6 @@ void PrintJobCMYK::prepareAssets()
         m_defaultInputCMYKPath = QStringLiteral(":/assets/RIP_App_Generic_CMYK.icc");
 }
 
-void PrintJobCMYK::prepareNocaiAssets()
-{
-    prepareAssets();
-}
-
 void PrintJobCMYK::cleanupTemporaryFiles(const QString& baseName, const QString& workingDir)
 {
     Q_UNUSED(baseName)

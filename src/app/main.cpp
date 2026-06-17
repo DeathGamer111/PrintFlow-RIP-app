@@ -79,7 +79,6 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("imageEditor", &imageEditor);
     engine.rootContext()->setContextProperty("printJobOutput", &printJobOutput);
     engine.rootContext()->setContextProperty("printJobCMYK", &printJobCMYKOutput);
-    engine.rootContext()->setContextProperty("printJobNocai", &printJobCMYKOutput);
     engine.rootContext()->setContextProperty("nocaiDirectPrint", &nocaiDirectPrint);
     engine.rootContext()->setContextProperty("printJobMultiInk", &printJobMultiInk);
     engine.rootContext()->setContextProperty("colorProfile", &colorProfile);
