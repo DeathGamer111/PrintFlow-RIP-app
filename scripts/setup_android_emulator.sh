@@ -6,6 +6,7 @@ ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$(pwd)/.android-sdk}"
 ANDROID_CMDLINE_TOOLS_URL="${ANDROID_CMDLINE_TOOLS_URL:-https://dl.google.com/android/repository/commandlinetools-linux-14742923_latest.zip}"
 ANDROID_PLATFORM="${ANDROID_PLATFORM:-android-36}"
 ANDROID_BUILD_TOOLS="${ANDROID_BUILD_TOOLS:-36.0.0}"
+ANDROID_NDK_VERSION="${ANDROID_NDK_VERSION:-29.0.13113456}"
 ANDROID_SYSTEM_IMAGE="${ANDROID_SYSTEM_IMAGE:-system-images;${ANDROID_PLATFORM};google_apis;x86_64}"
 ANDROID_AVD_NAME="${ANDROID_AVD_NAME:-PrintFlow_Pixel}"
 ANDROID_AVD_DEVICE_PREFERENCES="${ANDROID_AVD_DEVICE_PREFERENCES:-pixel_9,pixel_8,pixel_7,pixel_6,pixel}"
@@ -133,6 +134,7 @@ set -o pipefail
     "emulator" \
     "platforms;${ANDROID_PLATFORM}" \
     "build-tools;${ANDROID_BUILD_TOOLS}" \
+    "ndk;${ANDROID_NDK_VERSION}" \
     "${ANDROID_SYSTEM_IMAGE}"
 
 create_avd_if_missing
@@ -142,6 +144,7 @@ cat <<EOF
 Android emulator setup complete.
 
 export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT}"
+export ANDROID_NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}"
 export PATH="${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:\$PATH"
 
 AVD name: ${ANDROID_AVD_NAME}

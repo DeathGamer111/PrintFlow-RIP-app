@@ -108,3 +108,5 @@ src/vendor/nocai/*.so.*
 
 # Local Android SDK command-line installs
 .android-sdk/
+.android-env
+.tools/

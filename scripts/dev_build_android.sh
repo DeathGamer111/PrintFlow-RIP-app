@@ -4,6 +4,12 @@ set -euo pipefail
 
 BUILD_DIR="${BUILD_DIR:-build-android}"
 ANDROID_ABI="${ANDROID_ABI:-x86_64}"
+ANDROID_ENV_FILE="${ANDROID_ENV_FILE:-.android-env}"
+
+if [[ -f "${ANDROID_ENV_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    source "${ANDROID_ENV_FILE}"
+fi
 
 fail() {
     printf 'error: %s\n' "$1" >&2
