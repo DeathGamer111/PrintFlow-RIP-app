@@ -241,4 +241,37 @@ if(NOT ANDROID)
 
     add_test(NAME PrintFlowNocaiPrnWriter
              COMMAND PrintFlowNocaiPrnWriterTest)
+
+    add_executable(PrintFlowCMYKAssetManagerTest
+        tests/PrintJobCMYKAssetManagerTest.cpp
+        src/core/AssetManager.h src/core/AssetManager.cpp
+        src/core/ColorManagementManager.h src/core/ColorManagementManager.cpp
+        src/rip/PrintJobCMYK.h src/rip/PrintJobCMYK.cpp
+        src/vendor/nocai/NocaiPrnWriter.h src/vendor/nocai/NocaiPrnWriter.cpp
+    )
+
+    qt_add_resources(PrintFlowCMYKAssetManagerTest "cmyk_asset_test_resources"
+        PREFIX "/"
+        BASE "resources"
+        FILES
+            ${RIP_ASSET_FILES}
+    )
+
+    target_include_directories(PrintFlowCMYKAssetManagerTest PRIVATE
+        src/core
+        src/rip
+        src/vendor/nocai
+    )
+
+    target_link_libraries(PrintFlowCMYKAssetManagerTest
+        PRIVATE
+            Qt6::Core
+            Qt6::Concurrent
+            Qt6::Xml
+            PkgConfig::ImageMagick
+            PkgConfig::LCMS
+    )
+
+    add_test(NAME PrintFlowCMYKAssetManager
+             COMMAND PrintFlowCMYKAssetManagerTest)
 endif()

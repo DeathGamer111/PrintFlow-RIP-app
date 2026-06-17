@@ -3,7 +3,6 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
-#include <QStandardPaths>
 #include <QtConcurrent>
 #include <QTemporaryDir>
 #include <QVariantMap>
@@ -15,6 +14,7 @@
 #include <cstdint>
 #include <memory>
 #include <Magick++.h>
+#include "AssetManager.h"
 #include "ColorManagementManager.h"
 
 // CMYK raster pipeline: input load -> optional ICC convert -> CMYK separation ->
@@ -91,6 +91,7 @@ private:
     std::array<Magick::Image, 4> separateCMYK(Magick::Image& cmyk);
 
     // Paths and temp handling
+    AssetManager m_assetManager;
     QString assetsExtractPath;
     QString originalFilename;
     QString tempImagePath;

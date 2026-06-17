@@ -2,8 +2,8 @@
 #include "NocaiPrnWriter.h"
 #include <QTemporaryDir>
 #include <QTemporaryFile>
-#include <QStandardPaths>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
 #include <QProcess>
@@ -662,39 +662,57 @@ QVariantList PrintJobCMYK::getAvailableICCProfiles() const {
 // Copy runtime assets (profiles and masks) out of resources to a writeable temp location.
 // Also initialize defaults and register profiles for UI selection.
 void PrintJobCMYK::prepareAssets() {
-    // If assests have been moved and directory still exists, skip all the work.
+    if (!m_assetManager.initialize("runtime_assets")) {
+        qWarning() << "PrintJobCMYK: failed to initialize AssetManager.";
+        return;
+    }
+
+    assetsExtractPath = m_assetManager.rootPath();
+
+    // If assets have been moved and directory still exists, skip all the work.
     if (assetsPrepared && !assetsExtractPath.isEmpty() && QDir(assetsExtractPath).exists()) {
         qDebug() << "PrintJobCMYK: assets already prepared in" << assetsExtractPath;
         return;
     }
-    
-    assetsExtractPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/runtime_assets";
-    QDir().mkpath(assetsExtractPath);
 
-    auto copyIfMissing = [](const QString& qrcPath, const QString& destPath) {
-        if (!QFile::exists(destPath)) {
-            QFile::copy(qrcPath, destPath);
-        }
+    const QStringList bundledResourcePaths = {
+        ":/assets/sRGBProfile.icm",
+        ":/assets/RIP_App_1440_Plain_Default.icc",
+        ":/assets/RIP_App_1440_Plain_Neutral.icc",
+        ":/assets/RIP_App_Generic_CMYK.icc"
     };
 
-    // ICC Profiles
-    copyIfMissing(":/assets/sRGBProfile.icm", assetsExtractPath + "/sRGBProfile.icm");
-    copyIfMissing(":/assets/RIP_App_1440_Plain_Default.icc", assetsExtractPath + "/RIP_App_1440_Plain_Default.icc");
-    copyIfMissing(":/assets/RIP_App_1440_Plain_Neutral.icc", assetsExtractPath + "/RIP_App_1440_Plain_Neutral.icc");
-    copyIfMissing(":/assets/RIP_App_Generic_CMYK.icc", assetsExtractPath + "/RIP_App_Generic_CMYK.icc");
+    const QStringList bundledFileNames = {
+        "sRGBProfile.icm",
+        "RIP_App_1440_Plain_Default.icc",
+        "RIP_App_1440_Plain_Neutral.icc",
+        "RIP_App_Generic_CMYK.icc"
+    };
 
-    // Blue Noise Masks (512x512 Tiles, 12000x12000 Size)
-    copyIfMissing(":/assets/blue_noise_mask_512_12000/mask_c.tiff", assetsExtractPath + "/mask_512_c.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_512_12000/mask_m.tiff", assetsExtractPath + "/mask_512_m.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_512_12000/mask_y.tiff", assetsExtractPath + "/mask_512_y.tiff");
-    copyIfMissing(":/assets/blue_noise_mask_512_12000/mask_k.tiff", assetsExtractPath + "/mask_512_k.tiff");
+    if (!m_assetManager.copyResourcesIfMissing(bundledResourcePaths, bundledFileNames)) {
+        qWarning() << "PrintJobCMYK: failed to copy one or more bundled runtime assets.";
+        return;
+    }
+
+    const QStringList maskKeys = {"c", "m", "y", "k"};
+    for (const QString& key : maskKeys) {
+        const QString resourcePath = QString(":/assets/blue_noise_mask_512_12000/mask_%1.tiff").arg(key);
+        const QString fileName = QString("mask_512_%1.tiff").arg(key);
+        if (m_assetManager.hasAsset(fileName))
+            continue;
+        if (QFile::exists(resourcePath)) {
+            (void)m_assetManager.copyResourceIfMissing(resourcePath, fileName);
+        } else {
+            qWarning() << "PrintJobCMYK: mask is not bundled and is missing from runtime assets:" << fileName;
+        }
+    }
     
 	auto addProfile = [&](const QString& name, const QString& qrcPath, const QString& fileName) {
-		QString destPath = assetsExtractPath + "/" + fileName;
-		if (!QFile::exists(destPath)) {
-			QFile::copy(qrcPath, destPath);
-		}
-		addICCProfile(name, destPath);
+        if (!m_assetManager.copyResourceIfMissing(qrcPath, fileName)) {
+            qWarning() << "PrintJobCMYK: failed to copy ICC profile:" << qrcPath;
+            return;
+        }
+        addICCProfile(name, m_assetManager.assetPath(fileName));
 	};
 
     // Register ICC Profiles for UI and set defaults.
@@ -702,8 +720,10 @@ void PrintJobCMYK::prepareAssets() {
     addProfile("Neutral Profile - Plain Paper (1440DPI)",  ":/assets/RIP_App_1440_Plain_Neutral.icc", "RIP_App_1440_Plain_Neutral.icc");
     addProfile("sRGB Input", ":/assets/sRGBProfile.icm", "sRGBProfile.icm");
     addProfile("CMYK Input", ":/assets/RIP_App_Generic_CMYK.icc", "RIP_App_Generic_CMYK.icc");
-    setDefaultOutputICCProfile((assetsExtractPath + "/RIP_App_1440_Plain_Default.icc"));
-    setDefaultInputCMYKProfile(assetsExtractPath + "/RIP_App_Generic_CMYK.icc");
+    setDefaultOutputICCProfile(m_assetManager.assetPath("RIP_App_1440_Plain_Default.icc"));
+    setDefaultInputCMYKProfile(m_assetManager.assetPath("RIP_App_Generic_CMYK.icc"));
+
+    assetsPrepared = true;
 
     qDebug() << "PrintJobCMYK assets prepared in:" << assetsExtractPath;
 }
@@ -738,12 +758,11 @@ void PrintJobCMYK::cleanupTemporaryFiles(const QString& baseName, const QString&
 // Remove all runtime assets from the app data location.
 void PrintJobCMYK::cleanupRuntimeAssets() {
     qDebug() << "Cleaning runtime assets in:" << assetsExtractPath;
-    QDir dir(assetsExtractPath);
-    if (dir.exists()) {
-        dir.removeRecursively();
+    if (m_assetManager.cleanup()) {
+        assetsPrepared = false;
         qDebug() << "Runtime assets cleaned.";
     } else {
-        qDebug() << "Runtime assets directory not found.";
+        qWarning() << "Failed to clean runtime assets.";
     }
 }
 
