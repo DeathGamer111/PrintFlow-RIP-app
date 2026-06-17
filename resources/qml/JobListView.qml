@@ -20,6 +20,7 @@ Item {
     property bool selectionMode: false
     property var selectedIndexes: []
     property string suggestedFilename: ""
+    property string selectedLanguage: strings.language
 
     width: parent.width
     height: parent.height
@@ -116,6 +117,21 @@ Item {
             pass: appState.sdkPass,
             vsdMode: appState.sdkVsdMode
         }
+    }
+
+    function languageDisplayName(code) {
+        if (code === "zh-Hans")
+            return strings.trKey("language.chineseSimplified")
+        return strings.trKey("language.english")
+    }
+
+    function refreshJobListView() {
+        stackView.replace("qrc:/qml/JobListView.qml", {
+            stackView: stackView,
+            appState: appState,
+            jobModel: jobModel,
+            theme: root.theme
+        })
     }
 
 
@@ -397,6 +413,31 @@ Item {
 						C.MenuSeparator { }
 
 						C.MenuItem {
+							id: miLanguage
+							text: strings.trKey("language.menu")
+							hoverEnabled: true
+
+							background: Rectangle {
+								radius: 8
+								color: miLanguage.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+									   : (miLanguage.hovered
+											? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+											: "transparent")
+							}
+
+							contentItem: Label { text: miLanguage.text; color: root.theme.text; verticalAlignment: Text.AlignVCenter }
+
+							onTriggered: {
+								settingsMenu.close()
+                                selectedLanguage = strings.language
+								languagePopup.open()
+							}
+						}
+
+						C.MenuSeparator { }
+
+						C.MenuItem {
 							id: miDarkMode
 							text: root.theme.dark ? strings.trKey("jobs.switchLight") : strings.trKey("jobs.switchDark")
 							hoverEnabled: true
@@ -413,6 +454,102 @@ Item {
 							onTriggered: root.theme.dark = !root.theme.dark
 						}
 				}
+
+                Popup {
+                    id: languagePopup
+                    parent: Overlay.overlay
+                    modal: true
+                    focus: true
+                    width: Math.min(root.width - 32, 360)
+                    x: Math.round((root.width - width) / 2)
+                    y: Math.round((root.height - height) / 2)
+                    padding: 18
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                    background: Rectangle {
+                        color: root.theme.surface2
+                        radius: 8
+                        border.width: 1
+                        border.color: root.theme.divider
+                    }
+
+                    contentItem: ColumnLayout {
+                        spacing: 14
+
+                        Label {
+                            text: strings.trKey("language.title")
+                            color: root.theme.text
+                            font.pixelSize: 20
+                            font.weight: Font.Medium
+                            Layout.fillWidth: true
+                        }
+
+                        Label {
+                            text: strings.trKey("language.subtitle")
+                            color: root.theme.subtext
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+
+                        Label {
+                            text: strings.trKey("language.current") + ": " + root.languageDisplayName(strings.language)
+                            color: root.theme.subtext
+                            font.pixelSize: 13
+                            Layout.fillWidth: true
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            Repeater {
+                                model: strings.availableLanguages
+
+                                delegate: RadioDelegate {
+                                    id: languageOption
+                                    Layout.fillWidth: true
+                                    text: root.languageDisplayName(modelData.code)
+                                    checked: root.selectedLanguage === modelData.code
+                                    onClicked: root.selectedLanguage = modelData.code
+
+                                    contentItem: Label {
+                                        text: languageOption.text
+                                        color: root.theme.text
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: languageOption.indicator.width + languageOption.spacing
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            Item { Layout.fillWidth: true }
+
+                            ThemedButton {
+                                text: strings.trKey("common.cancel")
+                                theme: root.theme
+                                onClicked: languagePopup.close()
+                            }
+
+                            ThemedButton {
+                                text: strings.trKey("language.apply")
+                                theme: root.theme
+                                onClicked: {
+                                    const changed = strings.language !== root.selectedLanguage
+                                    strings.language = root.selectedLanguage
+                                    languagePopup.close()
+                                    if (changed) {
+                                        toast.show(strings.trKey("language.changed"))
+                                        Qt.callLater(root.refreshJobListView)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

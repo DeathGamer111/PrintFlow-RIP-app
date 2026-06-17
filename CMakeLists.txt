@@ -168,6 +168,7 @@ set(RIP_ASSET_FILES
 
 set(RIP_I18N_FILES
     resources/i18n/strings.json
+    resources/i18n/strings.zh-Hans.json
 )
 
 if(RIP_EMBED_BLUE_NOISE_MASKS)

@@ -4,10 +4,30 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
+#include <QtGlobal>
+#include <QVariantMap>
+
+namespace {
+QSettings appStringSettings()
+{
+    return QSettings(QSettings::IniFormat,
+                     QSettings::UserScope,
+                     QStringLiteral("PrintFlow"),
+                     QStringLiteral("PrintFlow"));
+}
+}
 
 AppStrings::AppStrings(QObject* parent)
     : QObject(parent)
 {
+    QSettings settings = appStringSettings();
+    m_language = settings.value(QStringLiteral("ui/language"), QStringLiteral("en")).toString();
+    if (qEnvironmentVariableIsSet("PRINTFLOW_LANGUAGE"))
+        m_language = qEnvironmentVariable("PRINTFLOW_LANGUAGE");
+    if (m_language.trimmed().isEmpty())
+        m_language = QStringLiteral("en");
+
     loadLanguage(m_language);
 }
 
@@ -28,7 +48,25 @@ void AppStrings::setLanguage(const QString& language)
     }
 
     m_language = clean;
+    QSettings settings = appStringSettings();
+    settings.setValue(QStringLiteral("ui/language"), m_language);
     emit languageChanged();
+}
+
+QVariantList AppStrings::availableLanguages() const
+{
+    return QVariantList {
+        QVariantMap {
+            { QStringLiteral("code"), QStringLiteral("en") },
+            { QStringLiteral("name"), QStringLiteral("English") },
+            { QStringLiteral("nativeName"), QStringLiteral("English") }
+        },
+        QVariantMap {
+            { QStringLiteral("code"), QStringLiteral("zh-Hans") },
+            { QStringLiteral("name"), QStringLiteral("Chinese (Simplified)") },
+            { QStringLiteral("nativeName"), QStringLiteral("简体中文") }
+        }
+    };
 }
 
 QString AppStrings::trKey(const QString& key) const
