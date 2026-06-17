@@ -9,7 +9,10 @@ ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${REPO_ROOT}/.android-sdk}"
 ANDROID_NDK_VERSION="${ANDROID_NDK_VERSION:-29.0.13113456}"
 QT_VERSION="${QT_VERSION:-6.8.3}"
 QT_INSTALL_ROOT="${QT_INSTALL_ROOT:-${HOME}/Qt}"
+QT_DESKTOP_TARGET="${QT_DESKTOP_TARGET:-linux_gcc_64}"
 QT_ANDROID_TARGETS="${QT_ANDROID_TARGETS:-android_x86_64 android_arm64_v8a}"
+QT_DESKTOP_MODULES="${QT_DESKTOP_MODULES:-}"
+QT_ANDROID_MODULES="${QT_ANDROID_MODULES:-}"
 AQT_VENV="${AQT_VENV:-${REPO_ROOT}/.tools/aqt}"
 ANDROID_ENV_FILE="${ANDROID_ENV_FILE:-${REPO_ROOT}/.android-env}"
 
@@ -71,6 +74,38 @@ install_aqt() {
     "${AQT_VENV}/bin/python" -m pip install --upgrade aqtinstall
 }
 
+aqt_install_qt() {
+    local host="$1"
+    local target="$2"
+    local qt_arch="$3"
+    local modules="$4"
+    local cmd
+
+    cmd=("${AQT_VENV}/bin/python" -m aqt install-qt "${host}" "${target}" "${QT_VERSION}" "${qt_arch}" -O "${QT_INSTALL_ROOT}")
+    if [[ -n "${modules}" ]]; then
+        # shellcheck disable=SC2206
+        module_args=(${modules})
+        cmd+=(-m "${module_args[@]}")
+    fi
+
+    "${cmd[@]}"
+}
+
+install_qt_desktop_tools() {
+    local qt_cmake
+
+    step "Installing Qt ${QT_VERSION} desktop host tools"
+    mkdir -p "${QT_INSTALL_ROOT}"
+
+    qt_cmake="${QT_INSTALL_ROOT}/${QT_VERSION}/${QT_DESKTOP_TARGET}/bin/qt-cmake"
+    if [[ -x "${qt_cmake}" ]]; then
+        info "Qt desktop target already installed: ${QT_DESKTOP_TARGET}"
+        return
+    fi
+
+    aqt_install_qt linux desktop "${QT_DESKTOP_TARGET}" "${QT_DESKTOP_MODULES}"
+}
+
 install_qt_android_targets() {
     local target qt_cmake
 
@@ -84,9 +119,7 @@ install_qt_android_targets() {
             continue
         fi
 
-        "${AQT_VENV}/bin/python" -m aqt install-qt linux android "${QT_VERSION}" "${target}" \
-            -O "${QT_INSTALL_ROOT}" \
-            -m qtimageformats qtsvg qtshadertools
+        aqt_install_qt linux android "${target}" "${QT_ANDROID_MODULES}"
     done
 }
 
@@ -136,11 +169,12 @@ It may:
   - install Linux packages using sudo apt
   - download Android command-line tools, platform tools, emulator, NDK, and a Pixel system image
   - create/update ${ANDROID_SDK_ROOT}
-  - install Qt ${QT_VERSION} Android kits under ${QT_INSTALL_ROOT}
+  - install Qt ${QT_VERSION} desktop host tools and Android kits under ${QT_INSTALL_ROOT}
   - write ${ANDROID_ENV_FILE}
 
 Override defaults with env vars such as QT_VERSION, QT_INSTALL_ROOT,
-ANDROID_SDK_ROOT, ANDROID_NDK_VERSION, or QT_ANDROID_TARGETS.
+ANDROID_SDK_ROOT, ANDROID_NDK_VERSION, QT_DESKTOP_TARGET,
+QT_ANDROID_TARGETS, QT_DESKTOP_MODULES, or QT_ANDROID_MODULES.
 EOF
 
 if [[ "${PRINTFLOW_ANDROID_SETUP_ASSUME_YES:-0}" == "1" ]]; then
@@ -160,6 +194,7 @@ fi
 install_host_packages
 install_android_sdk_and_avd
 install_aqt
+install_qt_desktop_tools
 install_qt_android_targets
 write_env_file
 verify_setup

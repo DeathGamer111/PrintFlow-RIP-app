@@ -110,3 +110,4 @@ src/vendor/nocai/*.so.*
 .android-sdk/
 .android-env
 .tools/
+aqtinstall.log
