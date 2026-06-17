@@ -80,9 +80,35 @@ CMakeLists.txt.user*
 .rcc/
 .uic/
 /build*/
+build-*/
+android-build/
+**/android-build/
+**/build/outputs/apk/
+**/build/outputs/bundle/
+**/build/outputs/aab/
+*.apk
+*.aab
 
 # Large Files in Assets
 assets/blue_noise_mask_*/**
+resources/assets/blue_noise_mask_*/**
 
 # Local vendor SDK drops
 DemoForARM64Linux-*/
+src/vendor/nocai/SDKExample*/
+src/vendor/nocai/sdk*/
+src/vendor/nocai/local*/
+src/vendor/nocai/vendor-sdk*/
+src/vendor/nocai/*SDK*/
+src/vendor/nocai/*.so
+src/vendor/nocai/*.so.*
+!src/vendor/nocai/*.cpp
+!src/vendor/nocai/*.h
+!src/vendor/nocai/README.md
+
+# Local Android SDK command-line installs
+.android-sdk/
+.android-env
+.tools/
+.gradle/
+aqtinstall.log

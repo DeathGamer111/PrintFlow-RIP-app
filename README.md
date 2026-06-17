@@ -1,16 +1,17 @@
-# RIP App
+# PrintFlow
 
-RIP App is a Qt 6 raster image processing application for preparing and outputting print jobs. It combines job management, image inspection/editing, imposition controls, ICC-based color conversion, stochastic screening, dot strategy tuning, and PRN generation for Nocai-style print workflows.
+PrintFlow is a Qt 6 raster image processing application for preparing and outputting print jobs. It combines job management, image inspection/editing, imposition controls, ICC-based color conversion, stochastic screening, dot strategy tuning, and PRN generation for production print workflows.
 
 The current codebase is focused on Linux desktop development with CMake, CUPS, ImageMagick, and Little CMS.
 
 ## Current Status
 
-- Active branch: `master`
+- Active branch: `android-apk-prep`
 - Build system: CMake
 - UI framework: Qt Quick/QML
 - Main development build script: `./Dev_Build_App.sh`
-- Primary executable target: `appRIPPrinterApp`
+- Primary executable target: `PrintFlow`
+- Base product identity: `PrintFlow`; customer/vendor display branding belongs in theme configuration.
 
 ## Features
 
@@ -43,32 +44,34 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 
 ```text
 .
-|-- AssetManager.*                 Runtime asset extraction/copy helpers
-|-- ColorManagementManager.*       Persisted color, profile, dot, and linearization settings
-|-- ColorProfile.*                 ICC conversion support
-|-- ImageEditor.*                  QML-facing image editing operations
-|-- ImageLoader.*                  File validation, metadata, and preview helpers
-|-- MultiInk*.{h,cpp}              Multi-ink tone building, screening, and linearization
-|-- PrintJob*.{h,cpp}              Job model, CUPS output, Nocai output, and multi-ink output
-|-- assets/                        Bundled ICC profiles, linearization XML, and logo
+|-- android/                       Qt Android package template
 |-- docs/                          Flowchart and software design document
-|-- qml/                           Qt Quick user interface
-`-- scripts/                       Packaging and ImageMagick policy helper scripts
+|-- packaging/linux/               Linux desktop/AppImage metadata
+|-- resources/assets/              Bundled ICC profiles, linearization XML, and logo
+|-- resources/qml/                 Qt Quick user interface
+|-- scripts/                       Linux, Android, packaging, and policy helper scripts
+|-- src/app/                       Application bootstrap
+|-- src/core/                      Shared models, settings, assets, and capabilities
+|-- src/platform/android/          Android-safe platform facades for APK boot
+|-- src/platform/desktop/          Linux desktop integrations such as CUPS
+|-- src/rip/                       Native RIP, color, screening, and PRN pipeline
+|-- src/vendor/nocai/              Shared Nocai direct-print SDK loader/client
+`-- src/vendor/stb/                Third-party single-header image loader
 ```
 
 Important QML views include:
 
-- `qml/Main.qml`
-- `qml/JobListView.qml`
-- `qml/JobDetailsView.qml`
-- `qml/ImageEditorView.qml`
-- `qml/ImpositionView.qml`
-- `qml/PrinterSetupView.qml`
-- `qml/ColorManagementView.qml`
+- `resources/qml/Main.qml`
+- `resources/qml/JobListView.qml`
+- `resources/qml/JobDetailsView.qml`
+- `resources/qml/ImageEditorView.qml`
+- `resources/qml/ImpositionView.qml`
+- `resources/qml/PrinterSetupView.qml`
+- `resources/qml/ColorManagementView.qml`
 
 ## Assets
 
-Small runtime assets are tracked in `assets/`, including:
+Small runtime assets are tracked in `resources/assets/`, including:
 
 - Output ICC profiles for 4-color, 8-color, 1440 plain default, 1440 plain neutral, and generic CMYK workflows.
 - `sRGBProfile.icm`
@@ -78,10 +81,10 @@ Small runtime assets are tracked in `assets/`, including:
 Large blue-noise mask directories are intentionally ignored by Git:
 
 ```text
-assets/blue_noise_mask_*/**
+resources/assets/blue_noise_mask_*/**
 ```
 
-For local builds that generate multi-ink output, the app expects the `assets/blue_noise_mask_512_12000/` directory to exist locally with the mask TIFF files used by `Dev_Build_App.sh`.
+For local builds that generate multi-ink output, the app expects the `resources/assets/blue_noise_mask_512_12000/` directory to exist locally with the mask TIFF files used by `scripts/dev_build_linux.sh`. The masks can be embedded into Qt resources with `-DRIP_EMBED_BLUE_NOISE_MASKS=ON`, but the default leaves them as local runtime assets to avoid very large generated resource objects.
 
 ## Requirements
 
@@ -100,10 +103,10 @@ On Debian/Ubuntu-style systems, use the main development script when you want th
 ./Dev_Build_App.sh
 ```
 
-The script uses `sudo apt-get`, relaxes ImageMagick policy limits through `scripts/Relax_ImageMagick_Limits.sh`, clears the local app cache/build folder, runs CMake, builds the app, and copies blue-noise masks into:
+The root script delegates to `scripts/dev_build_linux.sh`. It uses `sudo apt-get`, relaxes ImageMagick policy limits through `scripts/Relax_ImageMagick_Limits.sh`, clears the local app cache/build folder, runs CMake, builds the app, and copies blue-noise masks into:
 
 ```text
-~/.local/share/appRIPPrinterApp/runtime_assets/
+~/.local/share/PrintFlow/runtime_assets/
 ```
 
 ## Standard Build
@@ -118,8 +121,43 @@ cmake --build build --parallel
 Run the app with:
 
 ```bash
-./build/appRIPPrinterApp
+./build/PrintFlow
 ```
+
+## Android Build
+
+The first Android milestone is an APK that builds, installs, and boots in an emulator. Android builds default to boot-safe facades for CUPS and the native RIP pipeline. The shared Nocai direct-print SDK client is still compiled on Android and will package `libSYPrintAPIforPROII.so` when `DIRECT_PRINT_SDK_ROOT` points at a local ignored SDK folder containing that library.
+
+Required environment variables:
+
+```bash
+export QT_ANDROID_CMAKE="$HOME/Qt/<version>/android_x86_64/bin/qt-cmake"
+export ANDROID_SDK_ROOT="$PWD/.android-sdk"
+export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/<version>"
+export DIRECT_PRINT_SDK_ROOT="$PWD/DemoForARM64Linux-260612/Demo260612"
+```
+
+For emulator builds on a Linux workstation, point `QT_ANDROID_CMAKE` at a Qt Android x86_64 kit and use the default `ANDROID_ABI=x86_64`. For physical-device direct-print builds, use a Qt Android arm64 kit and set `ANDROID_ABI=arm64-v8a`.
+
+Install the local Android SDK command-line tools, emulator packages, and a Pixel-style AVD:
+
+```bash
+scripts/setup_android_emulator.sh
+```
+
+Build the APK:
+
+```bash
+scripts/dev_build_android.sh
+```
+
+Build, install, and launch it on the emulator:
+
+```bash
+scripts/android_build_install_run.sh
+```
+
+The Android build defaults to `ANDROID_ABI=x86_64` for emulator testing on Linux. The x86_64 emulator requires KVM/VM acceleration with writable `/dev/kvm`; without it, `scripts/start_android_emulator.sh` and `scripts/run_android_emulator.sh` fail early with a host-setup message. Use `ANDROID_ABI=arm64-v8a` for physical-device builds that package the vendor direct-print SDK.
 
 ## Development Notes
 
@@ -127,7 +165,12 @@ Run the app with:
 - The generated Qt resource output under `.rcc/` is ignored.
 - The blue-noise mask source directory is ignored because the masks are large local runtime assets.
 - The tracked ICC and XML assets are required by the color-management and multi-ink paths.
-- `scripts/Dev_Build_App.sh` has been superseded by the root-level `Dev_Build_App.sh`.
+- `Dev_Build_App.sh` is a compatibility wrapper around `scripts/dev_build_linux.sh`.
+- `scripts/setup_android_emulator.sh` installs local Android SDK/emulator packages and creates the default AVD.
+- `scripts/dev_build_android.sh` validates the Android toolchain and builds the APK target.
+- `scripts/start_android_emulator.sh` starts the configured AVD without requiring an APK.
+- `scripts/run_android_emulator.sh` installs and launches the latest built APK.
+- `scripts/android_build_install_run.sh` builds, installs, and launches in one step.
 
 ## Verification
 
@@ -136,7 +179,7 @@ A useful quick verification path is:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
-timeout 8s ./build/appRIPPrinterApp
+timeout 8s ./build/PrintFlow
 ```
 
 The timeout command is only a smoke test for startup and QML/runtime initialization; it stops the GUI after a few seconds.

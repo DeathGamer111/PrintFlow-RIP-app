@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=PrintFlow
+Comment=Raster image processor for production print workflows
+Exec=PrintFlow
+Icon=PrintFlow
+Terminal=false
+Categories=Graphics;Printing;
+StartupNotify=true
