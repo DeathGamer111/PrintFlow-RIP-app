@@ -11,9 +11,9 @@ ApplicationWindow {
     visible: true
     width: 475		// Default App window width; keep modest to fit small screens.
     height: 615		// Default App window height.
-    title: (strings.language, strings.trKey("app.title"))
+    title: theme.appName.length > 0 ? theme.appName : (strings.language, strings.trKey("app.title"))
     
-    readonly property Theme theme: Theme { dark: true }
+    readonly property Theme theme: Theme { dark: true; manager: themeManager }
 
     // Optional: set window background to match theme
     color: theme.bg

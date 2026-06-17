@@ -55,8 +55,8 @@ The app defaults to the X-36NC photo-printer style multi-ink workflow and prepar
 |-- src/platform/android/          Android-safe platform facades for APK boot
 |-- src/platform/desktop/          Linux desktop integrations such as CUPS
 |-- src/rip/                       Native RIP, color, screening, and PRN pipeline
-|-- src/vendor/nocai/              Shared Nocai direct-print SDK loader/client
-`-- src/vendor/stb/                Third-party single-header image loader
+|-- src/third_party/stb/           Third-party single-header image loader
+`-- src/vendor/nocai/              Vendor integration adapter for direct-print support
 ```
 
 Important QML views include:
@@ -124,9 +124,75 @@ Run the app with:
 ./build/PrintFlow
 ```
 
+## Theme Builds
+
+PrintFlow supports build-time theme selection for normal/basic and custom-branded builds. If no theme variable is set, the default/basic theme is used.
+
+Built-in themes:
+
+- `default`: neutral PrintFlow branding.
+- `nocai`: Nocai-oriented colors using public brand cues from Nocai printer materials.
+- `xante`: Xante/iQueue-oriented colors using public Xante and iQueue software cues.
+
+Build with a built-in theme:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake -S . -B build-nocai -DCMAKE_BUILD_TYPE=Debug -DRIP_THEME=nocai
+cmake -S . -B build-xante -DCMAKE_BUILD_TYPE=Debug -DRIP_THEME=xante
+```
+
+The development scripts forward these environment variables to CMake:
+
+```bash
+RIP_THEME=nocai scripts/dev_build_linux.sh
+RIP_THEME=xante scripts/dev_build_android.sh
+```
+
+Custom theme files can be embedded at configure time:
+
+```bash
+RIP_THEME_FILE=/path/to/custom-theme.json scripts/dev_build_linux.sh
+cmake -S . -B build-custom -DCMAKE_BUILD_TYPE=Debug -DRIP_THEME_FILE=/path/to/custom-theme.json
+```
+
+Custom theme JSON must include `id`, `displayName`, and `appName`. Other fields fall back to the default theme when omitted:
+
+```json
+{
+  "id": "customer",
+  "displayName": "Customer Theme",
+  "appName": "Customer PrintFlow",
+  "primaryColor": "#14181F",
+  "secondaryColor": "#1FB8A6",
+  "backgroundColor": "#0F131A",
+  "surfaceColor": "#14181F",
+  "surface2Color": "#1A202A",
+  "textColor": "#E6EAF2",
+  "subtextColor": "#A7B0C0",
+  "dividerColor": "#263042",
+  "lightBackgroundColor": "#ECEFF4",
+  "lightSurfaceColor": "#F6F7FB",
+  "lightSurface2Color": "#E3E7EF",
+  "lightTextColor": "#1F2937",
+  "lightSubtextColor": "#4B5563",
+  "lightDividerColor": "#C7CEDB",
+  "accentColor": "#2DD4BF",
+  "logoPath": "qrc:/themes/customer/assets/logo.png",
+  "splashLogoPath": "qrc:/themes/customer/assets/splash.png",
+  "logoWidth": 96,
+  "logoHeight": 40,
+  "aboutVendorName": "Customer",
+  "supportUrl": "https://example.com/support",
+  "copyrightText": "Copyright (c) 2026 Customer"
+}
+```
+
+Theme assets may live under `resources/themes/<theme-id>/assets/` or `resources/vendor/<vendor-id>/assets/` and can be referenced with `qrc:/...` paths. Custom file builds fail during CMake configure when the file is missing, invalid JSON, or missing required identity fields.
+
 ## Android Build
 
-The first Android milestone is an APK that builds, installs, and boots in an emulator. Android builds default to boot-safe facades for CUPS and the native RIP pipeline. The shared Nocai direct-print SDK client is still compiled on Android and will package `libSYPrintAPIforPROII.so` when `DIRECT_PRINT_SDK_ROOT` points at a local ignored SDK folder containing that library.
+The first Android milestone is an APK that builds, installs, and boots in an emulator. Android builds default to boot-safe facades for CUPS and the native RIP pipeline. The shared direct-print SDK client is still compiled on Android and will package the vendor direct-print SDK library when `DIRECT_PRINT_SDK_ROOT` points at a local ignored SDK folder containing it.
 
 Required environment variables:
 
@@ -134,7 +200,7 @@ Required environment variables:
 export QT_ANDROID_CMAKE="$HOME/Qt/<version>/android_x86_64/bin/qt-cmake"
 export ANDROID_SDK_ROOT="$PWD/.android-sdk"
 export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/<version>"
-export DIRECT_PRINT_SDK_ROOT="$PWD/DemoForARM64Linux-260612/Demo260612"
+export DIRECT_PRINT_SDK_ROOT="/path/to/local/vendor/sdk/drop"
 ```
 
 For emulator builds on a Linux workstation, point `QT_ANDROID_CMAKE` at a Qt Android x86_64 kit and use the default `ANDROID_ABI=x86_64`. For physical-device direct-print builds, use a Qt Android arm64 kit and set `ANDROID_ABI=arm64-v8a`.

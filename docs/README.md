@@ -15,7 +15,7 @@ The source tree is split by responsibility:
 - `src/platform/desktop/`: Linux desktop integrations such as CUPS.
 - `src/platform/android/`: Android-safe facades used for APK boot while native RIP dependencies are ported.
 - `src/vendor/nocai/`: shared direct-print SDK loader/client.
-- `src/vendor/stb/`: vendored single-header image loader.
+- `src/third_party/stb/`: third-party single-header image loader.
 - `resources/qml/` and `resources/assets/`: Qt Quick UI and bundled profiles/assets.
 - `packaging/linux/`: Linux desktop packaging metadata.
 - `android/`: Qt Android package template.
@@ -29,7 +29,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
 ```
 
-Android builds use Qt's Android `qt-cmake` wrapper and the `apk` target through `scripts/dev_build_android.sh`. The first milestone is APK boot in an emulator; direct-print SDK packaging is supported when `DIRECT_PRINT_SDK_ROOT` points to a local ignored SDK folder containing `libSYPrintAPIforPROII.so`.
+Android builds use Qt's Android `qt-cmake` wrapper and the `apk` target through `scripts/dev_build_android.sh`. The first milestone is APK boot in an emulator; direct-print SDK packaging is supported when `DIRECT_PRINT_SDK_ROOT` points to a local ignored SDK folder containing the vendor direct-print SDK library.
 
 ## Files
 

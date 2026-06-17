@@ -7,6 +7,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDateTime> 
+#include <QImageReader>
+#include <QRegularExpression>
+#include <QStandardPaths>
 
 
 /*********************************************************************************************
@@ -63,9 +66,8 @@ QHash<int, QByteArray> PrintJobModel::roleNames() const {
 }
 
 
-// Add a new print job with default values
-void PrintJobModel::addJob(const QString &name) {
-    beginInsertRows(QModelIndex(), m_jobs.size(), m_jobs.size());
+PrintJob PrintJobModel::makeDefaultJob(const QString &name) const
+{
     PrintJob job;
     job.id = QString::number(QDateTime::currentMSecsSinceEpoch());
     job.name = name;
@@ -78,9 +80,47 @@ void PrintJobModel::addJob(const QString &name) {
     job.colorProfile = "sRGB";
     job.whitePlatePath = "";
     job.varnishPlatePath = "";
+    return job;
+}
+
+// Add a new print job with default values
+void PrintJobModel::addJob(const QString &name) {
+    beginInsertRows(QModelIndex(), m_jobs.size(), m_jobs.size());
+    PrintJob job = makeDefaultJob(name);
     m_jobs.append(job);
     endInsertRows();
     emit countChanged();
+}
+
+int PrintJobModel::addJobFromImage(const QString &sourcePath, const QString &name)
+{
+    const QString importedPath = importImageToJobStorage(sourcePath);
+    if (importedPath.isEmpty())
+        return -1;
+
+    const int row = m_jobs.size();
+    const QUrl sourceUrl(sourcePath);
+    QFileInfo info(sourceUrl.isLocalFile() ? sourceUrl.toLocalFile() : sourcePath);
+    QString defaultName = info.completeBaseName().trimmed();
+    defaultName.remove(QRegularExpression(QStringLiteral("^\\d{10,}_")));
+    defaultName.remove(QRegularExpression(QStringLiteral("_\\d{10,}$")));
+    defaultName.replace(QRegularExpression(QStringLiteral("[_\\s]+")), QStringLiteral(" "));
+    if (defaultName.isEmpty()) {
+        QFileInfo importedInfo(QUrl(importedPath).toLocalFile());
+        defaultName = importedInfo.completeBaseName().trimmed();
+    }
+    if (defaultName.isEmpty())
+        defaultName = QStringLiteral("Untitled Image");
+    PrintJob job = makeDefaultJob(name.trimmed().isEmpty()
+        ? defaultName
+        : name.trimmed());
+    job.imagePath = importedPath;
+
+    beginInsertRows(QModelIndex(), row, row);
+    m_jobs.append(job);
+    endInsertRows();
+    emit countChanged();
+    return row;
 }
 
 
@@ -141,6 +181,101 @@ void PrintJobModel::updateJob(int index, const QVariantMap &jobData) {
     if (jobData.contains("createdAt"))     job.createdAt = jobData.value("createdAt").toDateTime();
 
     emit dataChanged(this->index(index), this->index(index));
+}
+
+bool PrintJobModel::updateJobImage(int index, const QString &sourcePath)
+{
+    if (index < 0 || index >= m_jobs.size()) {
+        m_lastError = QStringLiteral("No job is selected.");
+        return false;
+    }
+
+    const QString importedPath = importImageToJobStorage(sourcePath);
+    if (importedPath.isEmpty())
+        return false;
+
+    m_jobs[index].imagePath = importedPath;
+    emit dataChanged(this->index(index), this->index(index), {ImagePathRole});
+    return true;
+}
+
+QString PrintJobModel::lastError() const
+{
+    return m_lastError;
+}
+
+QString PrintJobModel::importImageToJobStorage(const QString &sourcePath)
+{
+    m_lastError.clear();
+
+    const QUrl url(sourcePath);
+    const QString localPath = url.isLocalFile() ? url.toLocalFile() : sourcePath;
+    QFileInfo sourceInfo(localPath);
+    const QString extension = sourceInfo.suffix().toLower();
+
+    if (!sourceInfo.exists() || !sourceInfo.isFile()) {
+        m_lastError = QStringLiteral("The selected image could not be opened.");
+        return {};
+    }
+
+    if (!isSupportedImportExtension(extension)) {
+        m_lastError = QStringLiteral("Unsupported image type: .%1").arg(extension);
+        return {};
+    }
+
+    if (!validateImportedSource(localPath, extension)) {
+        m_lastError = QStringLiteral("The selected file is not a readable image.");
+        return {};
+    }
+
+    const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (root.isEmpty()) {
+        m_lastError = QStringLiteral("App storage is not available.");
+        return {};
+    }
+
+    QDir dir(root);
+    if (!dir.mkpath(QStringLiteral("job_images"))) {
+        m_lastError = QStringLiteral("Could not create job image storage.");
+        return {};
+    }
+
+    QString base = sourceInfo.completeBaseName();
+    base.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_.-]+")), QStringLiteral("_"));
+    if (base.isEmpty())
+        base = QStringLiteral("image");
+
+    const QString fileName = QStringLiteral("%1_%2.%3")
+        .arg(QDateTime::currentMSecsSinceEpoch())
+        .arg(base)
+        .arg(extension);
+    const QString destination = dir.filePath(QStringLiteral("job_images/") + fileName);
+
+    if (!QFile::copy(localPath, destination)) {
+        m_lastError = QStringLiteral("Could not copy image into app storage.");
+        return {};
+    }
+
+    return QUrl::fromLocalFile(destination).toString();
+}
+
+bool PrintJobModel::isSupportedImportExtension(const QString &extension) const
+{
+    static const QStringList supported = {
+        QStringLiteral("jpeg"), QStringLiteral("jpg"), QStringLiteral("png"),
+        QStringLiteral("bmp"), QStringLiteral("tiff"), QStringLiteral("tif"),
+        QStringLiteral("svg"), QStringLiteral("pdf")
+    };
+    return supported.contains(extension);
+}
+
+bool PrintJobModel::validateImportedSource(const QString &localPath, const QString &extension) const
+{
+    if (extension == QStringLiteral("pdf") || extension == QStringLiteral("svg"))
+        return QFileInfo::exists(localPath);
+
+    QImageReader reader(localPath);
+    return reader.canRead();
 }
 
 

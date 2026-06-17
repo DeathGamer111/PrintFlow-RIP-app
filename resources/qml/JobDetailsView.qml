@@ -22,6 +22,7 @@ Item {
     property string selectedOutputICC: ""
     property string printedSizeDisplay: "Printed size unavailable"
     property bool loadingInputICC: true
+    property bool waitingForImageImport: false
 
     width: parent ? parent.width : 450
     height: parent ? parent.height : 600
@@ -115,6 +116,39 @@ Item {
         previewImage.source = temp
     }
 
+    function applyJobImagePath(path) {
+        jobData.imagePath = path
+
+        if (path.toLowerCase().endsWith(".pdf")) {
+            const previewPath = imageLoader.renderPdfToPreviewImage(path)
+            if (previewPath !== "") {
+                imagePath = "file://" + previewPath
+                tempPreviewPath = previewPath
+            } else {
+                imagePath = ""
+                tempPreviewPath = ""
+            }
+        } else {
+            imagePath = path
+            tempPreviewPath = ""
+        }
+
+        updateMetadata(path)
+        updatePrintedSize()
+        refreshPreview()
+    }
+
+    function importImageForCurrentJob(sourcePath) {
+        if (jobModel.updateJobImage(jobIndex, sourcePath)) {
+            jobData = jobModel.getJob(jobIndex)
+            applyJobImagePath(jobData.imagePath)
+            toast.show(strings.trKey("jobDetails.toast.imageImported"))
+        } else {
+            const message = jobModel.lastError()
+            toast.show(message.length > 0 ? message : strings.trKey("jobDetails.toast.imageImportFailed"))
+        }
+    }
+
 	
     // Capability guard: if no capability list is provided, assume supported.
     function isSupported(value, supportedList) {
@@ -140,6 +174,27 @@ Item {
     // Update job's persisted image path.
     function updateImagePath(path) {
         jobData.imagePath = path
+    }
+
+    Connections {
+        target: imageImportManager
+        function onImageReady(localFilePath) {
+            if (!root.waitingForImageImport)
+                return
+            root.waitingForImageImport = false
+            root.importImageForCurrentJob(localFilePath)
+        }
+        function onCanceled() {
+            if (!root.waitingForImageImport)
+                return
+            root.waitingForImageImport = false
+        }
+        function onFailed(message) {
+            if (!root.waitingForImageImport)
+                return
+            root.waitingForImageImport = false
+            toast.show(message)
+        }
     }
 
 
@@ -480,7 +535,14 @@ Item {
                     theme: root.theme
                     padding: 12
 					font.pixelSize: 14	
-                    onClicked: imageDialog.open()
+                    onClicked: {
+                        if (imageImportManager.supportsNativeImagePicker) {
+                            root.waitingForImageImport = true
+                            imageImportManager.openImageImportChooser()
+                        } else {
+                            imageDialog.open()
+                        }
+                    }
                 }
 
                 ThemedButton {
@@ -523,35 +585,7 @@ Item {
                 nameFilters: ["Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.svg *.pdf)"]
                 
                 onAccepted: {
-                	var filePath = String(file)
-                	
-                    if (imageLoader.isSupportedExtension(file)) {
-                        if (imageLoader.validateFile(file)) {
-                            updateMetadata(file)
-					
-							if (filePath.toLowerCase().endsWith(".pdf")) {
-								const previewPath = imageLoader.renderPdfToPreviewImage(file)
-				
-								if (previewPath !== "") {
-									imagePath = "file://" + previewPath
-									tempPreviewPath = previewPath // Track for later cleanup
-								} else {
-									console.warn("Failed to render PDF preview.")
-								}                			    
-							} else {
-								imagePath = file
-								tempPreviewPath = "" // Clear old preview if switching to non-PDF
-							}
-
-								updateImagePath(filePath)
-								updatePrintedSize()
-
-                            } else {
-                            	console.warn("File validation failed.")
-                            }
-			    	} else {
-						console.warn("Unsupported file type.")
-					}
+                    importImageForCurrentJob(String(file))
 				}
 			}
 						

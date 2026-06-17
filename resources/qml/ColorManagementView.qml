@@ -904,6 +904,14 @@ Page {
                         }
                     }
 
+					Rectangle {
+						visible: selectedMode >= 6
+						height: 1
+						Layout.fillWidth: true
+						color: theme.divider
+						opacity: 0.65
+					}
+
                     // --- Light ink controls (only meaningful for 6/7/8/10) ---
 					ColumnLayout {
 						visible: selectedMode >= 6
@@ -970,6 +978,8 @@ Page {
 						}
 
 						// --- Light ink min threshold override ---
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.45 }
+
 						Label { text: "Light Ink Threshold Override"; font.bold: true; color: theme.text }
 
 						RowLayout {
@@ -998,7 +1008,13 @@ Page {
 					}
 
                     // --- K split only for 8 & 10 ---
-                    Item { height: 6 }
+                    Rectangle {
+                        visible: selectedMode === 8 || selectedMode === 10
+                        height: 1
+                        Layout.fillWidth: true
+                        color: theme.divider
+                        opacity: 0.65
+                    }
 
                     Label {
                         visible: selectedMode === 8 || selectedMode === 10
@@ -1069,6 +1085,14 @@ Page {
                     }
 
                     // --- Neutral / GCR (modes 5/6/7/8/10) ---
+					Rectangle {
+						visible: selectedMode === 5 || selectedMode === 6 || selectedMode === 7 || selectedMode === 8 || selectedMode === 10
+						height: 1
+						Layout.fillWidth: true
+						color: theme.divider
+						opacity: 0.65
+					}
+
 					Label {
 						visible: selectedMode === 5 || selectedMode === 6 || selectedMode === 7 || selectedMode === 8 || selectedMode === 10
 						text: "Neutral / GCR"
@@ -1192,6 +1216,8 @@ Page {
 
 
                     // --- Promotion knobs (all modes) ---
+                    Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.65 }
+
                     Label { text: "Promotion Thresholds"; font.bold: true; color: theme.text }
 
                     RowLayout {
@@ -1209,7 +1235,7 @@ Page {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: "Min Neighboor Inked"; Layout.preferredWidth: 180; color: theme.text }
+                        Label { text: "Min Neighbor Inked"; Layout.preferredWidth: 180; color: theme.text }
                         SpinBox {
                             Layout.fillWidth: true
                             from: 0; to: 64
@@ -1339,6 +1365,14 @@ Page {
 					// =========================
 					// White
 					// =========================
+					Rectangle {
+						visible: modeHasWhite(root.selectedMode)
+						height: 1
+						Layout.fillWidth: true
+						color: theme.divider
+						opacity: 0.65
+					}
+
 					Label {
 						visible: modeHasWhite(root.selectedMode)
 						text: "White"
@@ -1389,6 +1423,8 @@ Page {
 							}
 						}
 
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.45 }
+
 						RowLayout {
 							Layout.fillWidth: true
 							Label { text: "Mask Selection"; Layout.preferredWidth: 180; color: theme.text }
@@ -1400,6 +1436,8 @@ Page {
 								onActivated: root.setParam("whiteMaskKey", model[currentIndex].value)
 							}
 						}
+
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.45 }
 
 						RowLayout {
 							Layout.fillWidth: true
@@ -1455,6 +1493,14 @@ Page {
 					// =========================
 					// Varnish
 					// =========================
+					Rectangle {
+						visible: modeHasVarnish(root.selectedMode)
+						height: 1
+						Layout.fillWidth: true
+						color: theme.divider
+						opacity: 0.65
+					}
+
 					Label {
 						visible: modeHasVarnish(root.selectedMode)
 						text: "Varnish"
@@ -1505,6 +1551,8 @@ Page {
 							}
 						}
 
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.45 }
+
 						RowLayout {
 							Layout.fillWidth: true
 							Label { text: "Mask Selection"; Layout.preferredWidth: 180; color: theme.text }
@@ -1516,6 +1564,8 @@ Page {
 								onActivated: root.setParam("varnishMaskKey", model[currentIndex].value)
 							}
 						}
+
+						Rectangle { height: 1; Layout.fillWidth: true; color: theme.divider; opacity: 0.45 }
 
 						RowLayout {
 							Layout.fillWidth: true

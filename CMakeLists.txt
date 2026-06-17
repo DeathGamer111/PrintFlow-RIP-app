@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(RIP_ANDROID_ENABLE_RIP_PROCESSING "Build Android with the native RIP dependency stack instead of boot-safe stubs." OFF)
 option(RIP_EMBED_BLUE_NOISE_MASKS "Embed local blue-noise TIFF masks into the Qt resource bundle." OFF)
+set(RIP_THEME "default" CACHE STRING "Built-in theme id to embed as the selected theme: default, nocai, or xante.")
+set(RIP_THEME_FILE "" CACHE FILEPATH "Optional custom theme JSON file to embed instead of a built-in selected theme.")
+set_property(CACHE RIP_THEME PROPERTY STRINGS default nocai xante)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Quick Concurrent Widgets QuickControls2 Xml)
 
@@ -19,10 +22,12 @@ set(RIP_CORE_SOURCES
     src/core/AppStrings.h src/core/AppStrings.cpp
     src/core/AssetManager.h src/core/AssetManager.cpp
     src/core/ColorManagementManager.h src/core/ColorManagementManager.cpp
+    src/core/ImageImportManager.h src/core/ImageImportManager.cpp
     src/core/IPrintOutputClient.h
     src/core/PlatformCapabilities.h src/core/PlatformCapabilities.cpp
     src/core/PrintJob.h
     src/core/PrintJobModel.h src/core/PrintJobModel.cpp
+    src/core/ThemeManager.h src/core/ThemeManager.cpp
     src/vendor/nocai/NocaiDirectPrintClient.h src/vendor/nocai/NocaiDirectPrintClient.cpp
     src/vendor/nocai/NocaiPrnWriter.h src/vendor/nocai/NocaiPrnWriter.cpp
 )
@@ -70,15 +75,15 @@ qt_add_executable(PrintFlow
     ${RIP_CORE_SOURCES}
     ${RIP_PROCESSING_SOURCES}
     ${RIP_PLATFORM_SOURCES}
-    src/vendor/stb/stb_image.h
+    src/third_party/stb/stb_image.h
 )
 
 target_include_directories(PrintFlow PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     src/app
     src/core
+    src/third_party/stb
     src/vendor/nocai
-    src/vendor/stb
 )
 
 if(ANDROID AND NOT RIP_ANDROID_ENABLE_RIP_PROCESSING)
@@ -89,6 +94,9 @@ endif()
 
 if(ANDROID)
     target_include_directories(PrintFlow PRIVATE src/platform/android)
+    if(TARGET Qt6::CorePrivate)
+        target_link_libraries(PrintFlow PRIVATE Qt6::CorePrivate)
+    endif()
 else()
     target_include_directories(PrintFlow PRIVATE src/platform/desktop)
 endif()
@@ -126,6 +134,43 @@ endif()
 if(ANDROID AND RIP_ANDROID_ENABLE_RIP_PROCESSING)
     target_compile_definitions(PrintFlow PRIVATE RIP_ANDROID_ENABLE_RIP_PROCESSING=1)
 endif()
+
+set(RIP_BUILTIN_THEMES default nocai xante)
+if(RIP_THEME_FILE)
+    if(NOT EXISTS "${RIP_THEME_FILE}")
+        message(FATAL_ERROR "RIP_THEME_FILE does not exist: ${RIP_THEME_FILE}")
+    endif()
+
+    file(READ "${RIP_THEME_FILE}" RIP_CUSTOM_THEME_JSON)
+    string(JSON RIP_CUSTOM_THEME_ID ERROR_VARIABLE RIP_CUSTOM_THEME_JSON_ERROR GET "${RIP_CUSTOM_THEME_JSON}" id)
+    if(RIP_CUSTOM_THEME_JSON_ERROR)
+        message(FATAL_ERROR "RIP_THEME_FILE is invalid JSON or is missing required field 'id': ${RIP_CUSTOM_THEME_JSON_ERROR}")
+    endif()
+    foreach(required_field displayName appName)
+        string(JSON RIP_CUSTOM_THEME_REQUIRED_VALUE ERROR_VARIABLE RIP_CUSTOM_THEME_REQUIRED_ERROR GET "${RIP_CUSTOM_THEME_JSON}" "${required_field}")
+        if(RIP_CUSTOM_THEME_REQUIRED_ERROR OR RIP_CUSTOM_THEME_REQUIRED_VALUE STREQUAL "")
+            message(FATAL_ERROR "RIP_THEME_FILE is missing required field '${required_field}': ${RIP_THEME_FILE}")
+        endif()
+    endforeach()
+
+    set(RIP_SELECTED_THEME_RESOURCE ":/themes/custom/theme.json")
+    set(RIP_GENERATED_THEME_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/resources/themes/custom")
+    file(MAKE_DIRECTORY "${RIP_GENERATED_THEME_DIR}")
+    configure_file("${RIP_THEME_FILE}" "${RIP_GENERATED_THEME_DIR}/theme.json" COPYONLY)
+    set(RIP_CUSTOM_THEME_RESOURCE_FILE "${RIP_GENERATED_THEME_DIR}/theme.json")
+    message(STATUS "Selected custom theme file: ${RIP_THEME_FILE}")
+else()
+    if(NOT RIP_THEME IN_LIST RIP_BUILTIN_THEMES)
+        message(FATAL_ERROR "Unknown RIP_THEME '${RIP_THEME}'. Expected one of: ${RIP_BUILTIN_THEMES}")
+    endif()
+
+    set(RIP_SELECTED_THEME_RESOURCE ":/themes/${RIP_THEME}/theme.json")
+    message(STATUS "Selected built-in theme: ${RIP_THEME}")
+endif()
+
+target_compile_definitions(PrintFlow PRIVATE
+    RIP_SELECTED_THEME_RESOURCE="${RIP_SELECTED_THEME_RESOURCE}"
+)
 
 set(DIRECT_PRINT_SDK_ROOT "$ENV{DIRECT_PRINT_SDK_ROOT}" CACHE PATH "Local vendor direct-print SDK root. This path is intentionally not committed.")
 if(NOT DIRECT_PRINT_SDK_ROOT)
@@ -171,6 +216,12 @@ set(RIP_I18N_FILES
     resources/i18n/strings.zh-Hans.json
 )
 
+file(GLOB_RECURSE RIP_THEME_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/*/theme.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes/*/assets/*"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/vendor/*/assets/*"
+)
+
 if(RIP_EMBED_BLUE_NOISE_MASKS)
     file(GLOB RIP_BLUE_NOISE_MASKS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/assets/blue_noise_mask_512_12000/*.tiff"
@@ -192,7 +243,17 @@ qt_add_resources(PrintFlow "app_resources"
         ${RIP_QML_FILES}
         ${RIP_ASSET_FILES}
         ${RIP_I18N_FILES}
+        ${RIP_THEME_FILES}
 )
+
+if(RIP_CUSTOM_THEME_RESOURCE_FILE)
+    qt_add_resources(PrintFlow "custom_theme_resource"
+        PREFIX "/"
+        BASE "${CMAKE_CURRENT_BINARY_DIR}/generated/resources"
+        FILES
+            "${RIP_CUSTOM_THEME_RESOURCE_FILE}"
+    )
+endif()
 
 set_target_properties(PrintFlow PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}

@@ -6,7 +6,11 @@ BUILD_DIR="${BUILD_DIR:-build-android}"
 ANDROID_ABI="${ANDROID_ABI:-x86_64}"
 ANDROID_ENV_FILE="${ANDROID_ENV_FILE:-.android-env}"
 GRADLE_USER_HOME="${GRADLE_USER_HOME:-$(pwd)/.gradle}"
+RIP_THEME="${RIP_THEME:-default}"
+RIP_THEME_FILE="${RIP_THEME_FILE:-}"
+GRADLE_OPTS="${GRADLE_OPTS:-} -Djava.net.preferIPv4Stack=true -Dorg.gradle.daemon=false -Dorg.gradle.vfs.watch=false"
 export GRADLE_USER_HOME
+export GRADLE_OPTS
 
 if [[ -f "${ANDROID_ENV_FILE}" ]]; then
     # shellcheck disable=SC1090
@@ -24,6 +28,14 @@ require_command() {
 
 require_path() {
     [[ -e "$2" ]] || fail "$1 does not exist: $2"
+}
+
+theme_cmake_args() {
+    printf -- '-DRIP_THEME=%s\n' "${RIP_THEME}"
+    if [[ -n "${RIP_THEME_FILE}" ]]; then
+        [[ -f "${RIP_THEME_FILE}" ]] || fail "RIP_THEME_FILE does not exist: ${RIP_THEME_FILE}"
+        printf -- '-DRIP_THEME_FILE=%s\n' "${RIP_THEME_FILE}"
+    fi
 }
 
 prepend_if_dir() {
@@ -89,6 +101,9 @@ else
     printf 'warning: DIRECT_PRINT_SDK_ROOT is not set; APK will build without the direct-print SDK library.\n' >&2
 fi
 
+mapfile -t THEME_CMAKE_ARGS < <(theme_cmake_args)
+printf 'Theme: %s%s\n' "${RIP_THEME}" "${RIP_THEME_FILE:+ from ${RIP_THEME_FILE}}"
+
 "${QT_ANDROID_CMAKE}" \
     -S . \
     -B "${BUILD_DIR}" \
@@ -97,7 +112,8 @@ fi
     -DANDROID_SDK_ROOT="${ANDROID_SDK_ROOT}" \
     -DANDROID_NDK_ROOT="${ANDROID_NDK_ROOT}" \
     -DQT_HOST_PATH="${QT_HOST_PATH}" \
-    -DQT_ANDROID_ABIS="${ANDROID_ABI}"
+    -DQT_ANDROID_ABIS="${ANDROID_ABI}" \
+    "${THEME_CMAKE_ARGS[@]}"
 
 cmake --build "${BUILD_DIR}" --target apk --parallel
 

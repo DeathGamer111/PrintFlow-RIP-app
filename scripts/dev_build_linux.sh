@@ -9,6 +9,8 @@ SDK_SOURCE_ROOT="${DIRECT_PRINT_SDK_ROOT:-${SDK_DIR_NAME}}"
 SDK_TARGET_ROOT="${BUILD_DIR}/${SDK_DIR_NAME}"
 MASK_SOURCE_DIR="resources/assets/blue_noise_mask_512_12000"
 RUNTIME_DIR="${HOME}/.local/share/PrintFlow/runtime_assets"
+RIP_THEME="${RIP_THEME:-default}"
+RIP_THEME_FILE="${RIP_THEME_FILE:-}"
 
 STEP=0
 TOTAL_STEPS=7
@@ -25,6 +27,14 @@ info() {
 fail() {
     printf '\nerror: %s\n' "$1" >&2
     exit 1
+}
+
+theme_cmake_args() {
+    printf -- '-DRIP_THEME=%s\n' "${RIP_THEME}"
+    if [[ -n "${RIP_THEME_FILE}" ]]; then
+        [[ -f "${RIP_THEME_FILE}" ]] || fail "RIP_THEME_FILE does not exist: ${RIP_THEME_FILE}"
+        printf -- '-DRIP_THEME_FILE=%s\n' "${RIP_THEME_FILE}"
+    fi
 }
 
 normalize_arch() {
@@ -143,7 +153,9 @@ mkdir -p "${BUILD_DIR}"
 info "Build directory: ${BUILD_DIR}"
 
 step "Configuring CMake"
-cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Debug
+mapfile -t THEME_CMAKE_ARGS < <(theme_cmake_args)
+info "Theme: ${RIP_THEME}${RIP_THEME_FILE:+ from ${RIP_THEME_FILE}}"
+cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Debug "${THEME_CMAKE_ARGS[@]}"
 
 step "Building ${TARGET_NAME}"
 cmake --build "${BUILD_DIR}" --parallel "$(nproc)"

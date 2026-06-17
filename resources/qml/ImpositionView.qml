@@ -304,7 +304,7 @@ Page {
                                     id: textItem
                                     text: textOverlayField.text
                                     font.pointSize: 14
-                                    color: "#2563EB" // readable blue; can be theme.accent later
+                                    color: theme.accent
                                 }
 
                                 MouseArea {

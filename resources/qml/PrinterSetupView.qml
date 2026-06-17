@@ -672,17 +672,18 @@ Page {
 	                                }
 
 	                                RowLayout {
-	                                    Layout.fillWidth: true
+	                                    Layout.alignment: Qt.AlignHCenter
+	                                    Layout.preferredWidth: Math.min(parent.width, 370)
 	                                    spacing: 10
 
 	                                    ThemedButton {
 	                                        text: root.sdkConnectionState === "connected" ? strings.trKey("common.connected") : strings.trKey("common.connect")
 	                                        theme: root.theme
-	                                        Layout.fillWidth: true
+	                                        Layout.preferredWidth: 180
 	                                        Layout.preferredHeight: 40
 	                                        background: Rectangle {
 	                                            radius: 6
-	                                            color: root.sdkConnectionState === "connected" ? "#1F8A5B" : "#A33A3A"
+	                                            color: root.sdkConnectionState === "connected" ? root.theme.accent2 : root.theme.danger
 	                                            border.width: 1
 	                                            border.color: root.theme.divider
 	                                        }
@@ -692,7 +693,7 @@ Page {
 	                                    ThemedButton {
 	                                        text: strings.trKey("printerSetup.refreshStatus")
 	                                        theme: root.theme
-	                                        Layout.fillWidth: true
+	                                        Layout.preferredWidth: 180
 	                                        Layout.preferredHeight: 40
 	                                        onClicked: root.refreshSdkStatusAndInfo()
 	                                    }
@@ -707,103 +708,110 @@ Page {
 	                                                     : nocaiDirectPrint.statusText())
 	                                    color: root.sdkConnectionState === "connected" ? theme.subtext : theme.warning
 	                                    wrapMode: Text.WordWrap
-	                                    horizontalAlignment: Text.AlignHCenter
+	                                    horizontalAlignment: Text.AlignLeft
 	                                }
 
-                                GridLayout {
+                                Item {
                                     Layout.fillWidth: true
-                                    columns: 2
-                                    columnSpacing: 12
-                                    rowSpacing: 8
+                                    Layout.preferredHeight: sdkSettingsGrid.implicitHeight
 
-                                    Label { text: "Print Direction"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 3; value: appState.sdkPrintDirection
-                                        onValueModified: { appState.sdkPrintDirection = value; root.setDirectSetting("printDirection", value) }
-                                    }
+                                    GridLayout {
+                                        id: sdkSettingsGrid
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: Math.min(implicitWidth, parent.width)
+                                        columns: 2
+                                        columnSpacing: 12
+                                        rowSpacing: 8
 
-                                    Label { text: "Print Speed"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 3; value: appState.sdkPrintSpeed
-                                        onValueModified: { appState.sdkPrintSpeed = value; root.setDirectSetting("printSpeed", value) }
-                                    }
+                                        Label { text: "Print Direction"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 3; value: appState.sdkPrintDirection
+                                            onValueModified: { appState.sdkPrintDirection = value; root.setDirectSetting("printDirection", value) }
+                                        }
 
-                                    Label { text: "WC Sequence"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 1; value: appState.sdkWcSequence
-                                        onValueModified: { appState.sdkWcSequence = value; root.setDirectSetting("wcSequence", value) }
-                                    }
+                                        Label { text: "Print Speed"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 3; value: appState.sdkPrintSpeed
+                                            onValueModified: { appState.sdkPrintSpeed = value; root.setDirectSetting("printSpeed", value) }
+                                        }
 
-                                    Label { text: "Eclosion Grade"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 3; value: appState.sdkEclosionGrade
-                                        onValueModified: { appState.sdkEclosionGrade = value; root.setDirectSetting("eclosionGrade", value) }
-                                    }
+                                        Label { text: "WC Sequence"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 1; value: appState.sdkWcSequence
+                                            onValueModified: { appState.sdkWcSequence = value; root.setDirectSetting("wcSequence", value) }
+                                        }
 
-                                    Label { text: "Head Select"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 2; value: appState.sdkHeadSelect
-                                        onValueModified: { appState.sdkHeadSelect = value; root.setDirectSetting("headSelect", value) }
-                                    }
+                                        Label { text: "Eclosion Grade"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 3; value: appState.sdkEclosionGrade
+                                            onValueModified: { appState.sdkEclosionGrade = value; root.setDirectSetting("eclosionGrade", value) }
+                                        }
 
-                                    Label { text: "White Ink Percent"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 9; value: appState.sdkWhiteInkPercent
-                                        onValueModified: { appState.sdkWhiteInkPercent = value; root.setDirectSetting("whiteInkPercent", value) }
-                                    }
+                                        Label { text: "Head Select"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 2; value: appState.sdkHeadSelect
+                                            onValueModified: { appState.sdkHeadSelect = value; root.setDirectSetting("headSelect", value) }
+                                        }
 
-                                    Label { text: "White Ink Pass"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 255; value: appState.sdkWhiteInkPassCount
-                                        onValueModified: { appState.sdkWhiteInkPassCount = value; root.setDirectSetting("whiteInkPassCount", value) }
-                                    }
+                                        Label { text: "White Ink Percent"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 9; value: appState.sdkWhiteInkPercent
+                                            onValueModified: { appState.sdkWhiteInkPercent = value; root.setDirectSetting("whiteInkPercent", value) }
+                                        }
 
-                                    Label { text: "Varnish Ink Percent"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 9; value: appState.sdkVarnishInkPercent
-                                        onValueModified: { appState.sdkVarnishInkPercent = value; root.setDirectSetting("varnishInkPercent", value) }
-                                    }
+                                        Label { text: "White Ink Pass"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 255; value: appState.sdkWhiteInkPassCount
+                                            onValueModified: { appState.sdkWhiteInkPassCount = value; root.setDirectSetting("whiteInkPassCount", value) }
+                                        }
 
-                                    Label { text: "Varnish Ink Pass"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 255; value: appState.sdkVarnishInkPassCount
-                                        onValueModified: { appState.sdkVarnishInkPassCount = value; root.setDirectSetting("varnishInkPassCount", value) }
-                                    }
+                                        Label { text: "Varnish Ink Percent"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 9; value: appState.sdkVarnishInkPercent
+                                            onValueModified: { appState.sdkVarnishInkPercent = value; root.setDirectSetting("varnishInkPercent", value) }
+                                        }
 
-                                    Label { text: "Head Voltage"; color: theme.text }
-                                    SpinBox {
-                                        from: 400; to: 600; value: appState.sdkHeadVoltage
-                                        onValueModified: { appState.sdkHeadVoltage = value; root.setDirectSetting("headVoltage", value) }
-                                    }
+                                        Label { text: "Varnish Ink Pass"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 255; value: appState.sdkVarnishInkPassCount
+                                            onValueModified: { appState.sdkVarnishInkPassCount = value; root.setDirectSetting("varnishInkPassCount", value) }
+                                        }
 
-                                    Label { text: "Car Reset"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 1; value: appState.sdkCarReset
-                                        onValueModified: { appState.sdkCarReset = value; root.setDirectSetting("carReset", value) }
-                                    }
+                                        Label { text: "Head Voltage"; color: theme.text }
+                                        SpinBox {
+                                            from: 400; to: 600; value: appState.sdkHeadVoltage
+                                            onValueModified: { appState.sdkHeadVoltage = value; root.setDirectSetting("headVoltage", value) }
+                                        }
 
-                                    Label { text: "Strip Blank"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 2; value: appState.sdkStripBlank
-                                        onValueModified: { appState.sdkStripBlank = value; root.setDirectSetting("stripBlank", value) }
-                                    }
+                                        Label { text: "Car Reset"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 1; value: appState.sdkCarReset
+                                            onValueModified: { appState.sdkCarReset = value; root.setDirectSetting("carReset", value) }
+                                        }
 
-                                    Label { text: "Blank Distance"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 65535; value: appState.sdkBlankDistance
-                                        onValueModified: { appState.sdkBlankDistance = value; root.setDirectSetting("blankDistance", value) }
-                                    }
+                                        Label { text: "Strip Blank"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 2; value: appState.sdkStripBlank
+                                            onValueModified: { appState.sdkStripBlank = value; root.setDirectSetting("stripBlank", value) }
+                                        }
 
-                                    Label { text: "Print Pass"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 255; value: appState.sdkPass
-                                        onValueModified: { appState.sdkPass = value; root.setDirectSetting("pass", value) }
-                                    }
+                                        Label { text: "Blank Distance"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 65535; value: appState.sdkBlankDistance
+                                            onValueModified: { appState.sdkBlankDistance = value; root.setDirectSetting("blankDistance", value) }
+                                        }
 
-                                    Label { text: "VsdMode"; color: theme.text }
-                                    SpinBox {
-                                        from: 0; to: 65535; value: appState.sdkVsdMode
-                                        onValueModified: { appState.sdkVsdMode = value; root.setDirectSetting("vsdMode", value) }
+                                        Label { text: "Print Pass"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 255; value: appState.sdkPass
+                                            onValueModified: { appState.sdkPass = value; root.setDirectSetting("pass", value) }
+                                        }
+
+                                        Label { text: "VsdMode"; color: theme.text }
+                                        SpinBox {
+                                            from: 0; to: 65535; value: appState.sdkVsdMode
+                                            onValueModified: { appState.sdkVsdMode = value; root.setDirectSetting("vsdMode", value) }
+                                        }
                                     }
                                 }
 
@@ -814,35 +822,42 @@ Page {
 	                                    Layout.alignment: Qt.AlignHCenter
 	                                }
 
-                                GridLayout {
+                                Item {
                                     Layout.fillWidth: true
-                                    columns: 2
-                                    columnSpacing: 12
-                                    rowSpacing: 6
+                                    Layout.preferredHeight: sdkUvGrid.implicitHeight
 
-                                    CheckBox {
-                                        text: "R lamp R->L off"; checked: appState.sdkDisableUv0 === 1
-                                        onToggled: { appState.sdkDisableUv0 = checked ? 1 : 0; root.setDirectSetting("disableUv0", appState.sdkDisableUv0) }
-                                    }
-                                    CheckBox {
-                                        text: "R lamp L->R off"; checked: appState.sdkDisableUv1 === 1
-                                        onToggled: { appState.sdkDisableUv1 = checked ? 1 : 0; root.setDirectSetting("disableUv1", appState.sdkDisableUv1) }
-                                    }
-                                    CheckBox {
-                                        text: "L lamp R->L off"; checked: appState.sdkDisableUv2 === 1
-                                        onToggled: { appState.sdkDisableUv2 = checked ? 1 : 0; root.setDirectSetting("disableUv2", appState.sdkDisableUv2) }
-                                    }
-                                    CheckBox {
-                                        text: "L lamp L->R off"; checked: appState.sdkDisableUv3 === 1
-                                        onToggled: { appState.sdkDisableUv3 = checked ? 1 : 0; root.setDirectSetting("disableUv3", appState.sdkDisableUv3) }
-                                    }
-                                    CheckBox {
-                                        text: "UV lamp R->L off"; checked: appState.sdkDisableUv4 === 1
-                                        onToggled: { appState.sdkDisableUv4 = checked ? 1 : 0; root.setDirectSetting("disableUv4", appState.sdkDisableUv4) }
-                                    }
-                                    CheckBox {
-                                        text: "UV lamp L->R off"; checked: appState.sdkDisableUv5 === 1
-                                        onToggled: { appState.sdkDisableUv5 = checked ? 1 : 0; root.setDirectSetting("disableUv5", appState.sdkDisableUv5) }
+                                    GridLayout {
+                                        id: sdkUvGrid
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: Math.min(implicitWidth, parent.width)
+                                        columns: 2
+                                        columnSpacing: 12
+                                        rowSpacing: 6
+
+                                        CheckBox {
+                                            text: "R lamp R->L off"; checked: appState.sdkDisableUv0 === 1
+                                            onToggled: { appState.sdkDisableUv0 = checked ? 1 : 0; root.setDirectSetting("disableUv0", appState.sdkDisableUv0) }
+                                        }
+                                        CheckBox {
+                                            text: "R lamp L->R off"; checked: appState.sdkDisableUv1 === 1
+                                            onToggled: { appState.sdkDisableUv1 = checked ? 1 : 0; root.setDirectSetting("disableUv1", appState.sdkDisableUv1) }
+                                        }
+                                        CheckBox {
+                                            text: "L lamp R->L off"; checked: appState.sdkDisableUv2 === 1
+                                            onToggled: { appState.sdkDisableUv2 = checked ? 1 : 0; root.setDirectSetting("disableUv2", appState.sdkDisableUv2) }
+                                        }
+                                        CheckBox {
+                                            text: "L lamp L->R off"; checked: appState.sdkDisableUv3 === 1
+                                            onToggled: { appState.sdkDisableUv3 = checked ? 1 : 0; root.setDirectSetting("disableUv3", appState.sdkDisableUv3) }
+                                        }
+                                        CheckBox {
+                                            text: "UV lamp R->L off"; checked: appState.sdkDisableUv4 === 1
+                                            onToggled: { appState.sdkDisableUv4 = checked ? 1 : 0; root.setDirectSetting("disableUv4", appState.sdkDisableUv4) }
+                                        }
+                                        CheckBox {
+                                            text: "UV lamp L->R off"; checked: appState.sdkDisableUv5 === 1
+                                            onToggled: { appState.sdkDisableUv5 = checked ? 1 : 0; root.setDirectSetting("disableUv5", appState.sdkDisableUv5) }
+                                        }
                                     }
                                 }
                             }

@@ -21,6 +21,7 @@ Item {
     property var selectedIndexes: []
     property string suggestedFilename: ""
     property string selectedLanguage: strings.language
+    property bool waitingForNewJobImport: false
 
     width: parent.width
     height: parent.height
@@ -134,6 +135,55 @@ Item {
         })
     }
 
+    function pushJobDetails(index) {
+        stackView.push("qrc:/qml/JobDetailsView.qml", {
+            jobIndex: index,
+            stackView: stackView,
+            appState: appState,
+            jobModel: jobModel,
+            theme: root.theme
+        })
+    }
+
+    function createJobFromImage(sourcePath) {
+        const index = jobModel.addJobFromImage(sourcePath)
+        if (index >= 0) {
+            toast.show(strings.trKey("jobs.toast.imageJobCreated"))
+            pushJobDetails(index)
+        } else {
+            const message = jobModel.lastError()
+            toast.show(message.length > 0 ? message : strings.trKey("jobs.toast.imageJobFailed"))
+        }
+    }
+
+    function removeSelectedJobs() {
+        const sorted = selectedIndexes.slice().sort((a, b) => b - a)
+        for (let i = 0; i < sorted.length; ++i)
+            jobModel.removeJob(sorted[i])
+        selectedIndexes = []
+    }
+
+    Connections {
+        target: imageImportManager
+        function onImageReady(localFilePath) {
+            if (!root.waitingForNewJobImport)
+                return
+            root.waitingForNewJobImport = false
+            root.createJobFromImage(localFilePath)
+        }
+        function onCanceled() {
+            if (!root.waitingForNewJobImport)
+                return
+            root.waitingForNewJobImport = false
+        }
+        function onFailed(message) {
+            if (!root.waitingForNewJobImport)
+                return
+            root.waitingForNewJobImport = false
+            toast.show(message)
+        }
+    }
+
 
     function printSelectedMultiInkDirectly() {
         if (!appState.supportsDirectPrint || !appState.supportsRipProcessing) {
@@ -218,69 +268,75 @@ Item {
 				anchors.rightMargin: 8
 				spacing: 10
 
-				// Left: logo
-				Image {
-					source: "qrc:/assets/logo.png"
-					Layout.preferredWidth: 40
-					Layout.preferredHeight: 40
-					Layout.alignment: Qt.AlignVCenter
-					fillMode: Image.PreserveAspectFit
-					smooth: true
-				}
-				
-				// Center: title (true centered)
-    			Item { Layout.fillWidth: true }  // spacer
+					Item {
+						Layout.preferredWidth: 132
+						Layout.fillHeight: true
 
-                Label {
-					text: strings.trKey("jobs.title")
-					font.pixelSize: 22
-					color: theme.text
-					horizontalAlignment: Text.AlignHCenter
-					verticalAlignment: Text.AlignVCenter
-					Layout.alignment: Qt.AlignVCenter
-				}
-
-				Item { Layout.fillWidth: true }  // spacer
-
-				// Right: settings
-				C.ToolButton {
-					id: settingsBtn
-					text: strings.trKey("jobs.settings")
-					Layout.alignment: Qt.AlignVCenter
-					hoverEnabled: true
-					
-				    height: 36
-				    padding: 10
-					
-					background: Rectangle {
-						radius: 8
-						color: settingsBtn.pressed
-							   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.22)
-							   : (settingsBtn.hovered
-								    ? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.10)
-								    : "transparent")
-						border.width: settingsBtn.hovered || settingsBtn.pressed ? 1 : 0
-						border.color: root.theme.divider
+						Image {
+							source: theme.logoPath
+							anchors.left: parent.left
+							anchors.verticalCenter: parent.verticalCenter
+							width: theme.logoWidth
+							height: theme.logoHeight
+							fillMode: Image.PreserveAspectFit
+							smooth: true
+						}
 					}
 
-					contentItem: Label {
-						text: settingsBtn.text
+	                Label {
+						text: strings.trKey("jobs.title")
+						font.pixelSize: 22
 						color: theme.text
-						verticalAlignment: Text.AlignVCenter
 						horizontalAlignment: Text.AlignHCenter
-						elide: Text.ElideRight
+						verticalAlignment: Text.AlignVCenter
+						Layout.fillWidth: true
+						Layout.alignment: Qt.AlignVCenter
 					}
 
-					onClicked: {
-						const host = root.Window.window ? root.Window.window.contentItem : root
-						const p = settingsBtn.mapToItem(host, 0, settingsBtn.height)
+					Item {
+						Layout.preferredWidth: 132
+						Layout.fillHeight: true
 
-						settingsMenu.parent = host
-						settingsMenu.x = Math.max(8, p.x + settingsBtn.width - settingsMenu.implicitWidth)
-						settingsMenu.y = p.y + 6
-						settingsMenu.open()
+						C.ToolButton {
+							id: settingsBtn
+							text: strings.trKey("jobs.settings")
+							anchors.right: parent.right
+							anchors.verticalCenter: parent.verticalCenter
+							width: 112
+							height: 36
+							hoverEnabled: true
+							padding: 10
+
+							background: Rectangle {
+								radius: 8
+								color: settingsBtn.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.22)
+									   : (settingsBtn.hovered
+										    ? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.10)
+										    : "transparent")
+								border.width: settingsBtn.hovered || settingsBtn.pressed ? 1 : 0
+								border.color: root.theme.divider
+							}
+
+							contentItem: Label {
+								text: settingsBtn.text
+								color: theme.text
+								verticalAlignment: Text.AlignVCenter
+								horizontalAlignment: Text.AlignHCenter
+								elide: Text.ElideRight
+							}
+
+							onClicked: {
+								const host = root.Window.window ? root.Window.window.contentItem : root
+								const p = settingsBtn.mapToItem(host, 0, settingsBtn.height)
+
+								settingsMenu.parent = host
+								settingsMenu.x = Math.max(8, p.x + settingsBtn.width - settingsMenu.implicitWidth)
+								settingsMenu.y = p.y + 6
+								settingsMenu.open()
+							}
+						}
 					}
-				}
 
 
 				C.Menu {
@@ -317,6 +373,35 @@ Item {
 							onTriggered: {
 								settingsMenu.close()
 								openFileDialog.open()
+							}
+						}
+
+						C.MenuSeparator { }
+
+						C.MenuItem {
+							id: miCreateFromImage
+							text: strings.trKey("jobs.createFromImage")
+							hoverEnabled: true
+
+							background: Rectangle {
+								radius: 8
+								color: miCreateFromImage.pressed
+									   ? Qt.rgba(root.theme.accent2.r, root.theme.accent2.g, root.theme.accent2.b, 0.25)
+									   : (miCreateFromImage.hovered
+											? Qt.rgba(root.theme.text.r, root.theme.text.g, root.theme.text.b, 0.12)
+											: "transparent")
+							}
+
+							contentItem: Label { text: miCreateFromImage.text; color: root.theme.text; verticalAlignment: Text.AlignVCenter }
+
+							onTriggered: {
+								settingsMenu.close()
+								if (imageImportManager.supportsNativeImagePicker) {
+									root.waitingForNewJobImport = true
+									imageImportManager.openImageImportChooser()
+								} else {
+									createJobImageDialog.open()
+								}
 							}
 						}
 
@@ -613,12 +698,7 @@ Item {
 					visible: selectionMode
 					enabled: selectedIndexes.length > 0
 					theme: root.theme
-					onClicked: {
-						const sorted = selectedIndexes.slice().sort((a, b) => b - a)
-						for (let i = 0; i < sorted.length; ++i)
-							jobModel.removeJob(sorted[i])
-						selectedIndexes = []
-					}
+					onClicked: removeJobsDialog.open()
 				}
 
 				// Save selected jobs to JSON (with embedded base64 image data).
@@ -772,6 +852,57 @@ Item {
             nameFilters: ["JSON Files (*.json)"]
             fileMode: P.FileDialog.OpenFile
             onAccepted: jobModel.loadFromJson(file)
+        }
+
+        P.FileDialog {
+            id: createJobImageDialog
+            title: strings.trKey("jobs.createFromImage.title")
+            nameFilters: ["Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.svg *.pdf)"]
+            fileMode: P.FileDialog.OpenFile
+            onAccepted: root.createJobFromImage(String(file))
+        }
+
+        C.Dialog {
+            id: removeJobsDialog
+            modal: true
+            focus: true
+            closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutside
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 48, 360)
+            title: strings.trKey("jobs.removeConfirm.title")
+
+            background: Rectangle {
+                color: root.theme.surface
+                radius: 8
+                border.width: 1
+                border.color: root.theme.divider
+            }
+
+            contentItem: Label {
+                text: strings.trKey("jobs.removeConfirm.message")
+                color: root.theme.text
+                wrapMode: Text.WordWrap
+                lineHeight: 1.1
+            }
+
+            footer: C.DialogButtonBox {
+                alignment: Qt.AlignRight
+                spacing: 8
+
+                C.Button {
+                    text: strings.trKey("common.cancel")
+                    DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                }
+
+                C.Button {
+                    text: strings.trKey("jobs.removeConfirm.remove")
+                    enabled: root.selectedIndexes.length > 0
+                    DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                }
+            }
+
+            onAccepted: root.removeSelectedJobs()
+            onRejected: close()
         }
 
 

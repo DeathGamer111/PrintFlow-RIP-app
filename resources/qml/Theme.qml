@@ -4,6 +4,7 @@ import QtQuick
 QtObject {
     // Controlled by Main.qml (and later persisted if you want)
     property bool dark: true
+    property var manager: themeManager
 
     // --- Dark palette (OpCharcoal + Teal) ---
     readonly property color _bgDark:       "#0F131A"
@@ -22,19 +23,30 @@ QtObject {
 	readonly property color _dividerLight:  "#C7CEDB"  // stronger dividers
 
     // Accent (keep constant across themes)
-    property color accent:  "#2DD4BF"
-    property color accent2: "#1FB8A6"
+    property color primary: manager ? manager.primaryColor : "#14181F"
+    property color secondary: manager ? manager.secondaryColor : "#1FB8A6"
+    property color accent: manager ? manager.accentColor : "#2DD4BF"
+    property color accent2: secondary
 
     // Status (constant)
     property color danger:  "#EF4444"
     property color warning: "#F59E0B"
 
     // Public palette (switches based on dark flag)
-    property color bg:       dark ? _bgDark       : _bgLight
-    property color surface:  dark ? _surfaceDark  : _surfaceLight
-    property color surface2: dark ? _surface2Dark : _surface2Light
-    property color text:     dark ? _textDark     : _textLight
-    property color subtext:  dark ? _subtextDark  : _subtextLight
-    property color divider:  dark ? _dividerDark  : _dividerLight
-}
+    property color bg:       dark ? (manager ? manager.backgroundColor : _bgDark) : (manager ? manager.lightBackgroundColor : _bgLight)
+    property color surface:  dark ? (manager ? manager.surfaceColor : _surfaceDark) : (manager ? manager.lightSurfaceColor : _surfaceLight)
+    property color surface2: dark ? (manager ? manager.surface2Color : _surface2Dark) : (manager ? manager.lightSurface2Color : _surface2Light)
+    property color text:     dark ? (manager ? manager.textColor : _textDark) : (manager ? manager.lightTextColor : _textLight)
+    property color subtext:  dark ? (manager ? manager.subtextColor : _subtextDark) : (manager ? manager.lightSubtextColor : _subtextLight)
+    property color divider:  dark ? (manager ? manager.dividerColor : _dividerDark) : (manager ? manager.lightDividerColor : _dividerLight)
 
+    property string appName: manager ? manager.appName : "PrintFlow"
+    property string displayName: manager ? manager.displayName : "Default"
+    property string logoPath: manager && manager.logoPath.length > 0 ? manager.logoPath : "qrc:/assets/logo.png"
+    property string splashLogoPath: manager && manager.splashLogoPath.length > 0 ? manager.splashLogoPath : logoPath
+    property int logoWidth: manager && manager.logoWidth > 0 ? manager.logoWidth : 40
+    property int logoHeight: manager && manager.logoHeight > 0 ? manager.logoHeight : 40
+    property string aboutVendorName: manager ? manager.aboutVendorName : ""
+    property string supportUrl: manager ? manager.supportUrl : ""
+    property string copyrightText: manager ? manager.copyrightText : ""
+}

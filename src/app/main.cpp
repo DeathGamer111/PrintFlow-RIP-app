@@ -20,7 +20,9 @@
 #include "ImageEditor.h"
 #include "ColorProfile.h"
 #include "ColorManagementManager.h"
+#include "ImageImportManager.h"
 #include "PlatformCapabilities.h"
+#include "ThemeManager.h"
 
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -52,12 +54,17 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("PrintFlow"));
     app.setDesktopFileName(QStringLiteral("PrintFlow"));
-    app.setWindowIcon(QIcon(QStringLiteral(":/assets/logo.png")));
     migrateLegacyAppData();
+
+    ThemeManager themeManager;
+    themeManager.loadSelectedTheme();
+    app.setWindowIcon(QIcon(themeManager.logoPath().startsWith(QStringLiteral("qrc:/"))
+        ? QString(themeManager.logoPath()).replace(QStringLiteral("qrc:/"), QStringLiteral(":/"))
+        : themeManager.logoPath()));
   
     // Optional: set Material theme + accent via env vars
-    qputenv("QT_QUICK_CONTROLS_MATERIAL_PRIMARY", "#14181F"); // charcoal
-    qputenv("QT_QUICK_CONTROLS_MATERIAL_ACCENT",  "#2DD4BF"); // teal
+    qputenv("QT_QUICK_CONTROLS_MATERIAL_PRIMARY", themeManager.primaryColor().name().toUtf8());
+    qputenv("QT_QUICK_CONTROLS_MATERIAL_ACCENT", themeManager.accentColor().name().toUtf8());
     QQuickStyle::setStyle("Material");
     
     QQmlApplicationEngine engine;
@@ -73,6 +80,7 @@ int main(int argc, char *argv[]) {
     PrintJobMultiInk printJobMultiInk;
     ColorProfile colorProfile;
     ColorManagementManager colorManager;
+    ImageImportManager imageImportManager;
     PlatformCapabilities platformCapabilities;
 
     // Expose C++ objects to QML (context properties for convenient access).
@@ -86,7 +94,9 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("printJobMultiInk", &printJobMultiInk);
     engine.rootContext()->setContextProperty("colorProfile", &colorProfile);
     engine.rootContext()->setContextProperty("colorManager", &colorManager);
+    engine.rootContext()->setContextProperty("imageImportManager", &imageImportManager);
     engine.rootContext()->setContextProperty("platformCapabilities", &platformCapabilities);
+    engine.rootContext()->setContextProperty("themeManager", &themeManager);
     
     // load persisted settings early
     colorManager.load();

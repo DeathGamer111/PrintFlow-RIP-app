@@ -39,14 +39,23 @@ public:
 
     // QML-callable methods
     Q_INVOKABLE void addJob(const QString &name);                                               // Create new print job
+    Q_INVOKABLE int addJobFromImage(const QString &sourcePath, const QString &name = QString());
     Q_INVOKABLE void removeJob(int index);                                                      // Remove job at index
     Q_INVOKABLE QVariantMap getJob(int index) const;                                            // Get job as map for QML
     Q_INVOKABLE void updateJob(int index, const QVariantMap &jobData);                          // Update job using map
+    Q_INVOKABLE bool updateJobImage(int index, const QString &sourcePath);
     Q_INVOKABLE void loadFromJson(const QString &filePath);                                     // Load jobs from file
     Q_INVOKABLE void saveToJson(const QString &filePath, const QList<int> &selectedIndexes);    // Save jobs to file
+    Q_INVOKABLE QString lastError() const;
 
 private:
     QList<PrintJob> m_jobs;
+    QString m_lastError;
+
+    PrintJob makeDefaultJob(const QString &name) const;
+    QString importImageToJobStorage(const QString &sourcePath);
+    bool isSupportedImportExtension(const QString &extension) const;
+    bool validateImportedSource(const QString &localPath, const QString &extension) const;
 
 signals:
     void countChanged(); // Emitted when job list changes
