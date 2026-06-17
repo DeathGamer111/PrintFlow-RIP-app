@@ -2,13 +2,13 @@
 
 set -euo pipefail
 
-TARGET_NAME="appRIPPrinterApp"
+TARGET_NAME="PrintFlow"
 BUILD_DIR="${BUILD_DIR:-build}"
 SDK_DIR_NAME="DemoForARM64Linux-260612/Demo260612"
 SDK_SOURCE_ROOT="${DIRECT_PRINT_SDK_ROOT:-${SDK_DIR_NAME}}"
 SDK_TARGET_ROOT="${BUILD_DIR}/${SDK_DIR_NAME}"
 MASK_SOURCE_DIR="resources/assets/blue_noise_mask_512_12000"
-RUNTIME_DIR="${HOME}/.local/share/appRIPPrinterApp/runtime_assets"
+RUNTIME_DIR="${HOME}/.local/share/PrintFlow/runtime_assets"
 
 STEP=0
 TOTAL_STEPS=7
@@ -136,8 +136,8 @@ step "Applying ImageMagick policy"
 sudo bash ./scripts/Relax_ImageMagick_Limits.sh
 
 step "Preparing build directories"
-sudo rm -rf "${HOME}/.local/share/appRIPPrinterApp/"
-sudo rm -rf "${HOME}/.cache/appRIPPrinterApp/"
+sudo rm -rf "${HOME}/.local/share/PrintFlow/"
+sudo rm -rf "${HOME}/.cache/PrintFlow/"
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 info "Build directory: ${BUILD_DIR}"

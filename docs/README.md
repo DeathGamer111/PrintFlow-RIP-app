@@ -1,10 +1,12 @@
-# RIP App Documentation
+# PrintFlow Documentation
 
-This directory contains supporting design and workflow material for the RIP App.
+This directory contains supporting design and workflow material for PrintFlow.
 
 ## Current App Shape
 
-RIP App is a Qt 6 C++/QML application targeting Linux desktop first, with Android APK support being prepared on the `android-apk-prep` branch.
+PrintFlow is a Qt 6 C++/QML application targeting Linux desktop first, with Android APK support being prepared on the `android-apk-prep` branch.
+
+The base product identity is vendor-neutral: `PrintFlow`. Customer/vendor variants such as `Xante PrintFlow`, `Nocai PrintFlow`, or `iQueue PrintFlow` should be handled through theme configuration rather than by renaming the base target.
 
 The source tree is split by responsibility:
 

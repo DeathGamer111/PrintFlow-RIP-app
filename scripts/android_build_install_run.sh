@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
 ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${REPO_ROOT}/.android-sdk}"
-AVD_NAME="${AVD_NAME:-${ANDROID_AVD_NAME:-RIP_App_Pixel}}"
+AVD_NAME="${AVD_NAME:-${ANDROID_AVD_NAME:-PrintFlow_Pixel}}"
 ANDROID_ABI="${ANDROID_ABI:-x86_64}"
 BUILD_DIR="${BUILD_DIR:-build-android}"
 

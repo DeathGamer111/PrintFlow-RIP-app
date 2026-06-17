@@ -3,7 +3,7 @@
 set -euo pipefail
 
 BUILD_DIR="${BUILD_DIR:-build-android}"
-AVD_NAME="${AVD_NAME:-RIP_App_Pixel}"
+AVD_NAME="${AVD_NAME:-PrintFlow_Pixel}"
 PACKAGE_NAME="${PACKAGE_NAME:-com.ripapp.printer}"
 ACTIVITY_NAME="${ACTIVITY_NAME:-org.qtproject.qt.android.bindings.QtActivity}"
 STREAM_LOGCAT="${STREAM_LOGCAT:-0}"
@@ -51,12 +51,12 @@ if ! adb get-state >/dev/null 2>&1; then
         extra_args=(${EMULATOR_EXTRA_ARGS})
         emulator_args+=("${extra_args[@]}")
     fi
-    emulator "${emulator_args[@]}" >/tmp/rip-app-emulator.log 2>&1 &
+    emulator "${emulator_args[@]}" >/tmp/printflow-emulator.log 2>&1 &
     emulator_pid=$!
     sleep 4
     if ! kill -0 "${emulator_pid}" >/dev/null 2>&1; then
         printf 'Emulator exited early. Last log lines:\n' >&2
-        tail -n 80 /tmp/rip-app-emulator.log >&2 || true
+        tail -n 80 /tmp/printflow-emulator.log >&2 || true
         exit 1
     fi
 fi

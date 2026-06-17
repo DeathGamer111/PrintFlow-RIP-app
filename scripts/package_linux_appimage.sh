@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-APP_NAME="RIP_App_Demo"
+APP_NAME="PrintFlow"
 VERSION="1.0.0"
 BUILD_DIR="build"
 APPDIR="${APP_NAME}.AppDir"
@@ -47,8 +47,8 @@ mkdir -p "${APPDIR}/usr/bin" \
          "${APPDIR}/usr/share/icons/hicolor/256x256/apps" \
          "${APPDIR}/usr/share/${APP_NAME}/assets"
 
-cp "${BUILD_DIR}/appRIPPrinterApp" "${APPDIR}/usr/bin/"
-cp packaging/linux/rip-app.desktop "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
+cp "${BUILD_DIR}/PrintFlow" "${APPDIR}/usr/bin/"
+cp packaging/linux/printflow.desktop "${APPDIR}/usr/share/applications/${APP_NAME}.desktop"
 
 if [[ -f "resources/assets/logo.png" ]]; then
     cp resources/assets/logo.png "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"

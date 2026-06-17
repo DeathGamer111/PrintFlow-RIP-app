@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(RIPPrinterApp VERSION 0.1 LANGUAGES CXX)
+project(PrintFlow VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -63,14 +63,14 @@ else()
     )
 endif()
 
-qt_add_executable(appRIPPrinterApp
+qt_add_executable(PrintFlow
     ${RIP_CORE_SOURCES}
     ${RIP_PROCESSING_SOURCES}
     ${RIP_PLATFORM_SOURCES}
     src/vendor/stb/stb_image.h
 )
 
-target_include_directories(appRIPPrinterApp PRIVATE
+target_include_directories(PrintFlow PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     src/app
     src/core
@@ -79,18 +79,18 @@ target_include_directories(appRIPPrinterApp PRIVATE
 )
 
 if(ANDROID AND NOT RIP_ANDROID_ENABLE_RIP_PROCESSING)
-    target_include_directories(appRIPPrinterApp PRIVATE src/platform/android)
+    target_include_directories(PrintFlow PRIVATE src/platform/android)
 else()
-    target_include_directories(appRIPPrinterApp PRIVATE src/rip)
+    target_include_directories(PrintFlow PRIVATE src/rip)
 endif()
 
 if(ANDROID)
-    target_include_directories(appRIPPrinterApp PRIVATE src/platform/android)
+    target_include_directories(PrintFlow PRIVATE src/platform/android)
 else()
-    target_include_directories(appRIPPrinterApp PRIVATE src/platform/desktop)
+    target_include_directories(PrintFlow PRIVATE src/platform/desktop)
 endif()
 
-target_link_libraries(appRIPPrinterApp
+target_link_libraries(PrintFlow
     PRIVATE
         Qt6::Quick
         Qt6::Concurrent
@@ -105,15 +105,15 @@ if(NOT ANDROID)
 
     if(CUPS_INCLUDE_DIR AND CUPS_LIBRARY)
         message(STATUS "CUPS found: ${CUPS_LIBRARY}")
-        target_include_directories(appRIPPrinterApp PRIVATE ${CUPS_INCLUDE_DIR})
-        target_link_libraries(appRIPPrinterApp PRIVATE ${CUPS_LIBRARY})
+        target_include_directories(PrintFlow PRIVATE ${CUPS_INCLUDE_DIR})
+        target_link_libraries(PrintFlow PRIVATE ${CUPS_LIBRARY})
     else()
         message(FATAL_ERROR "CUPS library not found")
     endif()
 endif()
 
 if(NOT ANDROID OR RIP_ANDROID_ENABLE_RIP_PROCESSING)
-    target_link_libraries(appRIPPrinterApp
+    target_link_libraries(PrintFlow
         PRIVATE
             PkgConfig::ImageMagick
             PkgConfig::LCMS
@@ -121,7 +121,7 @@ if(NOT ANDROID OR RIP_ANDROID_ENABLE_RIP_PROCESSING)
 endif()
 
 if(ANDROID AND RIP_ANDROID_ENABLE_RIP_PROCESSING)
-    target_compile_definitions(appRIPPrinterApp PRIVATE RIP_ANDROID_ENABLE_RIP_PROCESSING=1)
+    target_compile_definitions(PrintFlow PRIVATE RIP_ANDROID_ENABLE_RIP_PROCESSING=1)
 endif()
 
 set(DIRECT_PRINT_SDK_ROOT "$ENV{DIRECT_PRINT_SDK_ROOT}" CACHE PATH "Local vendor direct-print SDK root. This path is intentionally not committed.")
@@ -133,13 +133,13 @@ if(ANDROID)
     set(DIRECT_PRINT_SDK_LIBRARY "${DIRECT_PRINT_SDK_ROOT}/libSYPrintAPIforPROII.so")
     if(EXISTS "${DIRECT_PRINT_SDK_LIBRARY}")
         message(STATUS "Android direct-print SDK library: ${DIRECT_PRINT_SDK_LIBRARY}")
-        set_property(TARGET appRIPPrinterApp APPEND PROPERTY QT_ANDROID_EXTRA_LIBS "${DIRECT_PRINT_SDK_LIBRARY}")
+        set_property(TARGET PrintFlow APPEND PROPERTY QT_ANDROID_EXTRA_LIBS "${DIRECT_PRINT_SDK_LIBRARY}")
     else()
         message(WARNING "Android direct-print SDK library not found at ${DIRECT_PRINT_SDK_LIBRARY}. The APK can still boot, but direct print will report unavailable.")
     endif()
 
-    set_target_properties(appRIPPrinterApp PROPERTIES
-        QT_ANDROID_APP_NAME "RIP App"
+    set_target_properties(PrintFlow PROPERTIES
+        QT_ANDROID_APP_NAME "PrintFlow"
         QT_ANDROID_PACKAGE_NAME "com.ripapp.printer"
         QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
         QT_ANDROID_VERSION_CODE 1
@@ -177,7 +177,7 @@ else()
     message(STATUS "Blue-noise mask resource embedding is disabled. Set RIP_EMBED_BLUE_NOISE_MASKS=ON to package local masks into the Qt resource bundle.")
 endif()
 
-qt_add_resources(appRIPPrinterApp "app_resources"
+qt_add_resources(PrintFlow "app_resources"
     PREFIX "/"
     BASE "resources"
     FILES
@@ -185,7 +185,7 @@ qt_add_resources(appRIPPrinterApp "app_resources"
         ${RIP_ASSET_FILES}
 )
 
-set_target_properties(appRIPPrinterApp PROPERTIES
+set_target_properties(PrintFlow PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     MACOSX_BUNDLE TRUE
@@ -193,7 +193,7 @@ set_target_properties(appRIPPrinterApp PROPERTIES
 )
 
 include(GNUInstallDirs)
-install(TARGETS appRIPPrinterApp
+install(TARGETS PrintFlow
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

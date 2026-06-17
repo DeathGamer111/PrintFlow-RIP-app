@@ -1644,8 +1644,8 @@ bool PrintJobMultiInk::prepareAssets()
     };
 
     // Register profiles exposed to UI
-    addProfile("RIP App 1200 4C", "RIP_App_1200_4C.icc");
-    addProfile("RIP App 1200 8C/10C", "RIP_App_1200_8C.icc");
+    addProfile("PrintFlow 1200 4C", "RIP_App_1200_4C.icc");
+    addProfile("PrintFlow 1200 8C/10C", "RIP_App_1200_8C.icc");
     addProfile("sRGB Input", "sRGBProfile.icm");
     addProfile("CMYK Input", "RIP_App_Generic_CMYK.icc");
 

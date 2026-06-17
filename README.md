@@ -1,16 +1,17 @@
-# RIP App
+# PrintFlow
 
-RIP App is a Qt 6 raster image processing application for preparing and outputting print jobs. It combines job management, image inspection/editing, imposition controls, ICC-based color conversion, stochastic screening, dot strategy tuning, and PRN generation for Nocai-style print workflows.
+PrintFlow is a Qt 6 raster image processing application for preparing and outputting print jobs. It combines job management, image inspection/editing, imposition controls, ICC-based color conversion, stochastic screening, dot strategy tuning, and PRN generation for production print workflows.
 
 The current codebase is focused on Linux desktop development with CMake, CUPS, ImageMagick, and Little CMS.
 
 ## Current Status
 
-- Active branch: `master`
+- Active branch: `android-apk-prep`
 - Build system: CMake
 - UI framework: Qt Quick/QML
 - Main development build script: `./Dev_Build_App.sh`
-- Primary executable target: `appRIPPrinterApp`
+- Primary executable target: `PrintFlow`
+- Base product identity: `PrintFlow`; customer/vendor display branding belongs in theme configuration.
 
 ## Features
 
@@ -105,7 +106,7 @@ On Debian/Ubuntu-style systems, use the main development script when you want th
 The root script delegates to `scripts/dev_build_linux.sh`. It uses `sudo apt-get`, relaxes ImageMagick policy limits through `scripts/Relax_ImageMagick_Limits.sh`, clears the local app cache/build folder, runs CMake, builds the app, and copies blue-noise masks into:
 
 ```text
-~/.local/share/appRIPPrinterApp/runtime_assets/
+~/.local/share/PrintFlow/runtime_assets/
 ```
 
 ## Standard Build
@@ -120,7 +121,7 @@ cmake --build build --parallel
 Run the app with:
 
 ```bash
-./build/appRIPPrinterApp
+./build/PrintFlow
 ```
 
 ## Android Build
@@ -178,7 +179,7 @@ A useful quick verification path is:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
-timeout 8s ./build/appRIPPrinterApp
+timeout 8s ./build/PrintFlow
 ```
 
 The timeout command is only a smoke test for startup and QML/runtime initialization; it stops the GUI after a few seconds.

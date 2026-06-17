@@ -64,8 +64,8 @@ int PrintJobMultiInk::inkMode() const { return m_inkMode; }
 bool PrintJobMultiInk::prepareAssets()
 {
     if (m_profiles.isEmpty()) {
-        addICCProfile(QStringLiteral("RIP App 1200 4C"), QStringLiteral(":/assets/RIP_App_1200_4C.icc"));
-        addICCProfile(QStringLiteral("RIP App 1200 8C/10C"), QStringLiteral(":/assets/RIP_App_1200_8C.icc"));
+        addICCProfile(QStringLiteral("PrintFlow 1200 4C"), QStringLiteral(":/assets/RIP_App_1200_4C.icc"));
+        addICCProfile(QStringLiteral("PrintFlow 1200 8C/10C"), QStringLiteral(":/assets/RIP_App_1200_8C.icc"));
         addICCProfile(QStringLiteral("sRGB Input"), QStringLiteral(":/assets/sRGBProfile.icm"));
         addICCProfile(QStringLiteral("CMYK Input"), QStringLiteral(":/assets/RIP_App_Generic_CMYK.icc"));
     }

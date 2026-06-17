@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$(pwd)/.android-sdk}"
-AVD_NAME="${AVD_NAME:-RIP_App_Pixel}"
+AVD_NAME="${AVD_NAME:-PrintFlow_Pixel}"
 EMULATOR_HEADLESS="${EMULATOR_HEADLESS:-1}"
 EMULATOR_EXTRA_ARGS="${EMULATOR_EXTRA_ARGS:--no-metrics}"
 EMULATOR_ALLOW_NO_KVM="${EMULATOR_ALLOW_NO_KVM:-0}"
@@ -41,12 +41,12 @@ if ! adb get-state >/dev/null 2>&1; then
         extra_args=(${EMULATOR_EXTRA_ARGS})
         emulator_args+=("${extra_args[@]}")
     fi
-    emulator "${emulator_args[@]}" >/tmp/rip-app-emulator.log 2>&1 &
+    emulator "${emulator_args[@]}" >/tmp/printflow-emulator.log 2>&1 &
     emulator_pid=$!
     sleep 4
     if ! kill -0 "${emulator_pid}" >/dev/null 2>&1; then
         printf 'Emulator exited early. Last log lines:\n' >&2
-        tail -n 80 /tmp/rip-app-emulator.log >&2 || true
+        tail -n 80 /tmp/printflow-emulator.log >&2 || true
         exit 1
     fi
 fi

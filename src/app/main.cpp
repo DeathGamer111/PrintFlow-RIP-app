@@ -5,6 +5,10 @@
 #include <QIcon>
 #include <QPalette>
 #include <QStyleFactory>
+#include <QDir>
+#include <QFileInfo>
+#include <QDebug>
+#include <QStandardPaths>
 
 #include "PrintJobModel.h"
 #include "ImageLoader.h"
@@ -20,6 +24,21 @@
 #include <QQuickStyle>
 #include <QQuickWindow>
 
+namespace {
+void migrateLegacyAppData()
+{
+    const QString newRoot = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString oldRoot = QDir::home().absoluteFilePath(QStringLiteral(".local/share/appRIPPrinterApp"));
+
+    if (newRoot.isEmpty() || !QDir(oldRoot).exists() || QDir(newRoot).exists())
+        return;
+
+    QDir().mkpath(QFileInfo(newRoot).absolutePath());
+    if (!QDir().rename(oldRoot, newRoot)) {
+        qWarning() << "PrintFlow: unable to migrate legacy app data from" << oldRoot << "to" << newRoot;
+    }
+}
+}
 
 /* Entry point for the RIP application.
  * - Sets a consistent Fusion style with a dark palette.
@@ -30,8 +49,10 @@
 int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
-    app.setDesktopFileName(QStringLiteral("RIP_App_Demo"));
+    QCoreApplication::setApplicationName(QStringLiteral("PrintFlow"));
+    app.setDesktopFileName(QStringLiteral("PrintFlow"));
     app.setWindowIcon(QIcon(QStringLiteral(":/assets/logo.png")));
+    migrateLegacyAppData();
   
     // Optional: set Material theme + accent via env vars
     qputenv("QT_QUICK_CONTROLS_MATERIAL_PRIMARY", "#14181F"); // charcoal
