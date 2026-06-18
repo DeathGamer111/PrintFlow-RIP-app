@@ -6,7 +6,7 @@ The current codebase is focused on Linux desktop development with CMake, CUPS, I
 
 ## Current Status
 
-- Active branch: `robust-testing-suite`
+- Active branch: `master`
 - Build system: CMake
 - UI framework: Qt Quick/QML
 - Main development build script: `./Dev_Build_App.sh`
